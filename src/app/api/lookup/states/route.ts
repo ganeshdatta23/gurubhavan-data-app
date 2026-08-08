@@ -3,8 +3,11 @@ import { getStatesByCountry } from '@/db/queries/lookups';
 
 export async function GET(request: NextRequest) {
   const countryId = Number(request.nextUrl.searchParams.get('countryId'));
-  const data = countryId ? await getStatesByCountry(countryId) : await import('@/db/queries/lookups').then(({ getStates }) => getStates());
-  return NextResponse.json(data, {
-    headers: { 'Cache-Control': 'public, max-age=3600, s-maxage=3600' },
+  if (!Number.isInteger(countryId) || countryId < 1) {
+    return NextResponse.json({ error: 'countryId is required.' }, { status: 400 });
+  }
+  return NextResponse.json(await getStatesByCountry(countryId), {
+    // Do not cache — location seed updates must show immediately.
+    headers: { 'Cache-Control': 'no-store' },
   });
 }

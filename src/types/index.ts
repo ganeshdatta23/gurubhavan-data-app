@@ -1,133 +1,45 @@
-export type UserRole = 'super_admin' | 'admin' | 'viewer' | 'member';
-export type RecordStatus = 'clean' | 'needs_review' | 'duplicate';
-export type CampaignStatus = 'draft' | 'queued' | 'running' | 'completed' | 'failed' | 'scheduled';
-export type DeliveryStatus =
-  | 'queued' | 'sent' | 'delivered' | 'read'
-  | 'failed' | 'skipped_opted_out' | 'skipped_no_phone';
-export type BulkUploadStatus =
-  | 'pending' | 'validating' | 'preview_ready' | 'processing' | 'completed' | 'failed';
-export type ReviewFlagType =
-  | 'state_not_certain' | 'city_not_certain' | 'postal_missing'
-  | 'missing_mobile' | 'district_not_certain';
-
-export interface SessionPayload {
+export type SessionPayload = {
   userId: number;
-  email: string;
+  username: string;
   name: string;
-  role: UserRole;
-  sourceGroupId: number | null;
-}
+  role: 'admin';
+};
 
-export interface LookupOption {
+export type LookupOption = {
   id: number;
   name: string;
-}
+  iso2?: string;
+};
 
-export interface DevoteeListItem {
+export type DevoteeListItem = {
   id: number;
   fullName: string;
-  primaryPhone: string | null;
-  cityId: number | null;
-  cityName: string | null;
-  districtId: number | null;
-  districtName: string | null;
-  stateId: number | null;
-  stateName: string | null;
-  countryId: number | null;
-  countryName: string | null;
-  sourceGroupId: number;
-  sourceGroupName: string | null;
-  recordStatus: RecordStatus;
-  whatsappOptedOut: boolean;
-  flags: string[];
-  addressLine1: string | null;
+  mobile: string;
+  email: string | null;
+  address: string;
   postalCode: string | null;
-  createdAt: Date;
-  updatedAt: Date;
-}
+  countryId: number;
+  stateId: number;
+  cityId: number;
+  countryName: string;
+  stateName: string;
+  cityName: string;
+};
 
-export interface DevoteeDetail extends DevoteeListItem {
-  serialNo: number | null;
-  addressLine2: string | null;
-  addressLine3: string | null;
-  rawAddressText: string | null;
-  notes: string | null;
-  phones: Array<{ id: number; phoneNumber: string; isPrimary: boolean; countryCode: string }>;
-  reviewFlags: Array<{ id: number; flag: string; resolvedAt: Date | null }>;
-}
-
-export interface DevoteeFilters {
-  q?: string;
-  status?: RecordStatus;
-  countryId?: number;
-  stateId?: number;
-  districtId?: number;
-  cityId?: number;
-  sourceGroupId?: number;
-  hasFlags?: boolean;
-  whatsappOptedIn?: boolean;
-  createdAfter?: string;
-  createdBefore?: string;
-  page?: number;
-  limit?: number;
-  sort?: string;
-}
-
-export interface PaginatedResponse<T> {
-  data: T[];
-  pagination: {
-    page: number;
-    limit: number;
-    total: number;
-    totalPages: number;
-  };
-}
-
-export interface ExportRow {
-  serial: number;
+export type MessageSendResult = {
+  id: number;
   name: string;
-  primaryPhone: string;
-  secondaryPhones: string;
-  addressLine1: string;
-  addressLine2: string;
-  addressLine3: string;
+  ok: boolean;
+  error?: string;
+};
+
+export type ExportRow = {
+  fullName: string;
+  mobile: string;
+  address: string;
   city: string;
-  district: string;
   state: string;
-  country: string;
   postalCode: string;
-  chapter: string;
-  status: RecordStatus;
-  flags: string;
-  createdAt: string;
-}
-
-export interface BulkUploadValidationResult {
-  jobId: number;
-  totalRows: number;
-  validRows: number;
-  invalidRows: number;
-  duplicateRows: number;
-  errors: BulkUploadRowError[];
-}
-
-export interface BulkUploadRowError {
-  rowNumber: number;
-  fieldName: string | null;
-  errorType: string;
-  errorMessage: string;
-  rawValue: string | null;
-}
-
-export interface AudiencePreview {
-  total: number;
-  noPhone: number;
-  optedOut: number;
-  eligible: number;
-}
-
-export interface DuplicateCheckResult {
-  isDuplicate: boolean;
-  warnings: string[];
-  existingRecord: { id: number; name: string; chapter: string } | null;
-}
+  country: string;
+  email: string;
+};

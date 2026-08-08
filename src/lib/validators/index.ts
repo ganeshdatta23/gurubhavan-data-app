@@ -1,120 +1,57 @@
 import { z } from 'zod';
 
-// ── Shared primitives ──────────────────────────────────────────────
-const phoneNumber = z
-  .string()
-  .min(7, 'Phone number is too short')
-  .max(15, 'Phone number is too long')
-  .regex(/^\d+$/, 'Phone number must contain only digits');
+const positiveId = z.coerce.number().int().positive('Choose an option.');
+const nullableEmail = z.preprocess(
+  (value) => (typeof value === 'string' && value.trim() === '' ? null : value),
+  z.string().trim().email('Enter a valid email address.').max(255).toLowerCase().nullable(),
+);
 
-const postalCode = z.string().max(10).optional().nullable();
-
-// ── Auth ───────────────────────────────────────────────────────────
 export const loginSchema = z.object({
-  email: z.string().email('Enter a valid email address'),
-  password: z.string().min(1, 'Password is required'),
+  username: z.string().trim().min(1, 'Enter your username.').max(50).toLowerCase(),
+  password: z.string().min(1, 'Enter your password.').max(200),
 });
 
-export const registerSchema = z.object({
-  email: z.string().email('Enter a valid email address'),
-  password: z.string().min(8, 'Password must be at least 8 characters'),
-  name: z.string().min(1, 'Name is required').max(100),
-});
-
-// ── Devotee ────────────────────────────────────────────────────────
 export const devoteeFormSchema = z.object({
-  fullName: z.string().min(1, 'Full name is required').max(200),
-  sourceGroupId: z.number({ required_error: 'Chapter is required' }).int().positive(),
-  primaryPhone: phoneNumber,
-  secondaryPhones: z.array(phoneNumber).max(5).default([]),
-  primaryCountryCode: z.string().default('+91'),
-  addressLine1: z.string().max(200).optional().nullable(),
-  addressLine2: z.string().max(200).optional().nullable(),
-  addressLine3: z.string().max(200).optional().nullable(),
-  countryId: z.number().int().positive().optional().nullable(),
-  stateId: z.number().int().positive().optional().nullable(),
-  districtId: z.number().int().positive().optional().nullable(),
-  cityId: z.number().int().positive().optional().nullable(),
-  postalCode,
-  notes: z.string().max(1000).optional().nullable(),
-});
-
-export const devoteeUpdateSchema = devoteeFormSchema.partial().extend({
-  recordStatus: z.enum(['clean', 'needs_review', 'duplicate']).optional(),
-});
+    fullName: z.string().trim().min(2, 'Enter at least 2 characters.').max(120, 'Use 120 characters or fewer.'),
+    mobile: z.string().transform((value) => value.replace(/\D/g, '')).pipe(
+      z.string().min(7, 'Enter a valid mobile number.').max(15, 'Enter a valid mobile number.'),
+    ),
+    address: z.string().trim().min(3, 'Enter the address.').max(500, 'Use 500 characters or fewer.'),
+    countryId: positiveId,
+    stateId: positiveId,
+    cityId: positiveId,
+    postalCode: z.preprocess(
+      (value) => {
+        if (typeof value !== 'string') return value;
+        const digits = value.replace(/\D/g, '');
+        return digits || null;
+      },
+      z.string().max(12, 'Use 12 digits or fewer.').nullable().optional(),
+    ),
+    email: nullableEmail.optional().default(null),
+  });
 
 export const devoteeQuerySchema = z.object({
-  q: z.string().optional(),
-  status: z.enum(['clean', 'needs_review', 'duplicate']).optional(),
+  q: z.string().trim().max(120).optional(),
   countryId: z.coerce.number().int().positive().optional(),
   stateId: z.coerce.number().int().positive().optional(),
-  districtId: z.coerce.number().int().positive().optional(),
   cityId: z.coerce.number().int().positive().optional(),
-  sourceGroupId: z.coerce.number().int().positive().optional(),
-  hasFlags: z.coerce.boolean().optional(),
-  whatsappOptedIn: z.coerce.boolean().optional(),
-  createdAfter: z.string().optional(),
-  createdBefore: z.string().optional(),
-  page: z.coerce.number().int().positive().default(1),
-  limit: z.coerce.number().int().positive().max(200).default(25),
-  sort: z.enum(['name_asc', 'name_desc', 'created_desc', 'created_asc', 'updated_desc', 'status']).default('name_asc'),
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().refine((value) => [50, 100, 200].includes(value), 'Choose 50, 100, or 200.').default(50),
 });
 
-export const checkDuplicateSchema = z.object({
-  phoneNumber,
+export const sendMessagesSchema = z.object({
+  ids: z.array(z.coerce.number().int().positive())
+    .min(1, 'Select at least one person.')
+    .max(25, 'Send to at most 25 people per request.'),
+  body: z.string().trim().min(1, 'Type the message to send.').max(3000, 'Use 3,000 characters or fewer.'),
+});
+
+export const duplicateCheckSchema = z.object({
+  mobile: z.string().transform((value) => value.replace(/\D/g, '')).pipe(z.string().min(7).max(15)),
   excludeId: z.number().int().positive().optional(),
 });
 
-// ── Campaign ───────────────────────────────────────────────────────
-export const campaignSchema = z.object({
-  name: z.string().min(1, 'Campaign name is required').max(200),
-  templateName: z.string().min(1, 'Template name is required'),
-  templateLanguage: z.string().default('en'),
-  templateVariables: z
-    .array(
-      z.object({
-        placeholder: z.string(),
-        source: z.enum(['fullName', 'primaryPhone', 'city', 'chapter', 'free']),
-        value: z.string().optional(),
-      })
-    )
-    .default([]),
-  audienceFilters: z
-    .object({
-      countryId: z.number().optional(),
-      stateId: z.number().optional(),
-      cityId: z.number().optional(),
-      stateIds: z.array(z.number().int().positive()).default([]),
-      cityIds: z.array(z.number().int().positive()).default([]),
-      recipientIds: z.array(z.number().int().positive()).default([]),
-      selectionMode: z.enum(['all', 'filtered', 'manual']).default('all'),
-      sourceGroupId: z.number().optional(),
-      status: z.enum(['clean', 'needs_review', 'duplicate']).optional(),
-    })
-    .default({}),
-  scheduledAt: z.string().datetime().optional().nullable(),
-});
-
-// ── Export ─────────────────────────────────────────────────────────
-export const exportBodySchema = z.object({
-  ids: z.array(z.number().int().positive()).optional(),
-  filters: z
-    .object({
-      q: z.string().optional(),
-      status: z.enum(['clean', 'needs_review', 'duplicate']).optional(),
-      countryId: z.number().optional(),
-      stateId: z.number().optional(),
-      cityId: z.number().optional(),
-      sourceGroupId: z.number().optional(),
-    })
-    .optional(),
-});
-
-export type LoginInput = z.infer<typeof loginSchema>;
-export type RegisterInput = z.infer<typeof registerSchema>;
-export type DevoteeFormInput = z.infer<typeof devoteeFormSchema>;
-export type DevoteeUpdateInput = z.infer<typeof devoteeUpdateSchema>;
+export type DevoteeFormInput = z.input<typeof devoteeFormSchema>;
+export type DevoteeFormData = z.output<typeof devoteeFormSchema>;
 export type DevoteeQuery = z.infer<typeof devoteeQuerySchema>;
-export type CheckDuplicateInput = z.infer<typeof checkDuplicateSchema>;
-export type CampaignInput = z.infer<typeof campaignSchema>;
-export type ExportBody = z.infer<typeof exportBodySchema>;

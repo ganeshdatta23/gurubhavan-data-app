@@ -1,47 +1,15 @@
-import { db } from '@/db';
-import { countries, states, districts, cities, sourceGroups } from '@/db/schema';
 import { eq } from 'drizzle-orm';
+import { db } from '@/db';
+import { cities, countries, states } from '@/db/schema';
 
-export async function getCountries() {
-  return db.select({ id: countries.id, name: countries.name }).from(countries).orderBy(countries.name);
+export function getCountries() {
+  return db.select({ id: countries.id, name: countries.name, iso2: countries.iso2 }).from(countries).orderBy(countries.name);
 }
 
-export async function getStatesByCountry(countryId: number) {
-  return db
-    .select({ id: states.id, name: states.name })
-    .from(states)
-    .where(eq(states.countryId, countryId))
-    .orderBy(states.name);
+export function getStatesByCountry(countryId: number) {
+  return db.select({ id: states.id, name: states.name }).from(states).where(eq(states.countryId, countryId)).orderBy(states.name);
 }
 
-export async function getStates() {
-  return db.select({ id: states.id, name: states.name, countryId: states.countryId }).from(states).orderBy(states.name);
-}
-
-export async function getDistrictsByState(stateId: number) {
-  return db
-    .select({ id: districts.id, name: districts.name })
-    .from(districts)
-    .where(eq(districts.stateId, stateId))
-    .orderBy(districts.name);
-}
-
-export async function getCitiesByState(stateId: number) {
-  return db
-    .select({ id: cities.id, name: cities.name })
-    .from(cities)
-    .where(eq(cities.stateId, stateId))
-    .orderBy(cities.name);
-}
-
-export async function getCitiesByDistrict(districtId: number) {
-  return db
-    .select({ id: cities.id, name: cities.name })
-    .from(cities)
-    .where(eq(cities.districtId, districtId))
-    .orderBy(cities.name);
-}
-
-export async function getSourceGroups() {
-  return db.select({ id: sourceGroups.id, name: sourceGroups.name }).from(sourceGroups).orderBy(sourceGroups.name);
+export function getCitiesByState(stateId: number) {
+  return db.select({ id: cities.id, name: cities.name }).from(cities).where(eq(cities.stateId, stateId)).orderBy(cities.name);
 }

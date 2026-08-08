@@ -1,7 +1,0 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getSession } from '@/lib/auth';
-import { createCampaign, getAudiencePreview, listCampaigns } from '@/db/queries/campaigns';
-import { campaignSchema } from '@/lib/validators/index';
-
-export async function GET() { const session = await getSession(); if (!session || !['super_admin', 'admin'].includes(session.role)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 }); return NextResponse.json(await listCampaigns(session.role === 'super_admin' ? undefined : session.userId)); }
-export async function POST(request: NextRequest) { const session = await getSession(); if (!session || !['super_admin', 'admin'].includes(session.role)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 }); const parsed = campaignSchema.safeParse(await request.json().catch(() => null)); if (!parsed.success) return NextResponse.json({ error: parsed.error.errors[0].message }, { status: 400 }); if (session.role === 'admin' && session.sourceGroupId) parsed.data.audienceFilters.sourceGroupId = session.sourceGroupId; const preview = await getAudiencePreview(parsed.data.audienceFilters); if (!preview.eligible) return NextResponse.json({ error: 'No eligible WhatsApp recipients match this audience.' }, { status: 400 }); const campaign = await createCampaign(parsed.data, session.userId); return NextResponse.json({ campaign, preview }, { status: 201 }); }

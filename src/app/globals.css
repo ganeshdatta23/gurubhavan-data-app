@@ -1,4 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -32,10 +31,16 @@
   }
 
   body {
-    @apply bg-bg text-foreground font-sans;
+    @apply bg-bg font-sans text-base text-foreground antialiased;
   }
 
-  /* Phone numbers and PIN codes always use mono font */
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+  }
+
   .font-phone,
   input[type='tel'],
   [data-phone] {

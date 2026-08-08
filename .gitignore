@@ -1,8 +1,12 @@
 node_modules/
 .next/
+.open-next/
+.wrangler/
 *.tsbuildinfo
 .env
 .env.local
 .env.*.local
+.dev.vars
 !.env.example
-
+cloudflare-env.d.ts
+data/

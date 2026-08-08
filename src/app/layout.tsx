@@ -1,10 +1,9 @@
 import type { Metadata } from 'next';
 import './globals.css';
-import { Toaster } from 'sonner';
 
 export const metadata: Metadata = {
-  title: 'Devotee Registry',
-  description: 'Centralized devotee contact and address management',
+  title: 'Guru Bhavan Registry',
+  description: 'Simple devotee data management for Guru Bhavan volunteers',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -12,7 +11,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <body suppressHydrationWarning>
         {children}
-        <Toaster position="bottom-right" richColors closeButton />
       </body>
     </html>
   );

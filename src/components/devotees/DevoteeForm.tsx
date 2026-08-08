@@ -1,466 +1,287 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
-import { useForm, useFieldArray } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { toast } from 'sonner';
-import { Plus, Trash2, AlertTriangle, CheckCircle2 } from 'lucide-react';
-import { FuzzyCombobox, type LookupOption } from '@/components/shared/FuzzyCombobox';
-import { LocationCascade, type LocationValue } from '@/components/shared/LocationCascade';
-import { devoteeFormSchema, type DevoteeFormInput } from '@/lib/validators/index';
-import { formatPhone } from '@/lib/utils';
-import type { DuplicateCheckResult } from '@/types';
+import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { CheckCircle2 } from 'lucide-react';
+import { expectedPhoneHint, normalizeAndCheckMobile } from '@/lib/phone';
+import { devoteeFormSchema } from '@/lib/validators';
+import { LookupCombobox } from '@/components/shared/LookupCombobox';
+import type { DevoteeListItem, LookupOption } from '@/types';
 
-const DRAFT_KEY = 'devotee-form-draft';
-const STEPS = ['Personal Info', 'Address', 'Review & Confirm'];
+type FormValues = {
+  fullName: string;
+  mobile: string;
+  address: string;
+  countryId: string;
+  stateId: string;
+  cityId: string;
+  postalCode: string;
+  email: string;
+};
 
-interface Props {
-  devoteeId?: number;
-  onSuccess?: (id: number) => void;
+type Props = {
+  countries: LookupOption[];
+  defaultCountryId?: number;
+  devotee?: DevoteeListItem;
+  onSaved: () => void;
   onCancel?: () => void;
-}
+};
 
-export function DevoteeForm({ devoteeId, onSuccess, onCancel }: Props) {
-  const isEdit = !!devoteeId;
-  const [step, setStep] = useState(0);
-  const [groups, setGroups] = useState<LookupOption[]>([]);
-  const [dupeResult, setDupeResult] = useState<DuplicateCheckResult | null>(null);
-  const [dupeLoading, setDupeLoading] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-  const [showDraftBanner, setShowDraftBanner] = useState(false);
-  const dupeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const draftTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+const blank = (countryId?: number): FormValues => ({
+  fullName: '', mobile: '', address: '', countryId: countryId ? String(countryId) : '',
+  stateId: '', cityId: '', postalCode: '', email: '',
+});
 
-  const {
-    register,
-    handleSubmit,
-    watch,
-    setValue,
-    getValues,
-    reset,
-    formState: { errors, isDirty },
-  } = useForm<DevoteeFormInput>({
-    resolver: zodResolver(devoteeFormSchema),
-    defaultValues: {
-      fullName: '',
-      primaryPhone: '',
-      secondaryPhones: [],
-      primaryCountryCode: '+91',
-      sourceGroupId: undefined,
-      addressLine1: null,
-      addressLine2: null,
-      addressLine3: null,
-      countryId: null,
-      stateId: null,
-      districtId: null,
-      cityId: null,
-      postalCode: null,
-      notes: null,
-    },
-  });
+export function DevoteeForm({ countries, defaultCountryId, devotee, onSaved, onCancel }: Props) {
+  const [values, setValues] = useState<FormValues>(() => devotee ? {
+    fullName: devotee.fullName,
+    mobile: devotee.mobile,
+    address: devotee.address,
+    countryId: String(devotee.countryId),
+    stateId: String(devotee.stateId),
+    cityId: String(devotee.cityId),
+    postalCode: devotee.postalCode ?? '',
+    email: devotee.email ?? '',
+  } : blank(defaultCountryId));
+  const [states, setStates] = useState<LookupOption[]>([]);
+  const [cities, setCities] = useState<LookupOption[]>([]);
+  const [loadingStates, setLoadingStates] = useState(false);
+  const [loadingCities, setLoadingCities] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [serverError, setServerError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [duplicateWarning, setDuplicateWarning] = useState('');
+  const firstErrorRef = useRef<HTMLDivElement>(null);
+  const selectedCountry = useMemo(
+    () => countries.find((country) => String(country.id) === values.countryId),
+    [countries, values.countryId],
+  );
+  const isIndia = selectedCountry?.iso2?.toUpperCase() === 'IN';
+  const countryIso2 = selectedCountry?.iso2?.toUpperCase() ?? '';
 
-  const { fields: secondaryFields, append, remove } = useFieldArray({
-    control: undefined as never,
-    name: 'secondaryPhones' as never,
-  });
-
-  const watchedValues = watch();
-  const primaryPhone = watch('primaryPhone');
-  const locationValue: LocationValue = {
-    countryId: watch('countryId') ?? null,
-    stateId: watch('stateId') ?? null,
-    districtId: watch('districtId') ?? null,
-    cityId: watch('cityId') ?? null,
-  };
-
-  // Load source groups
   useEffect(() => {
-    fetch('/api/lookup/source-groups')
-      .then((r) => r.json())
-      .then((data: LookupOption[]) => setGroups(data))
-      .catch(() => {});
-  }, []);
-
-  // Load existing record in edit mode
-  useEffect(() => {
-    if (!devoteeId) return;
-    fetch(`/api/devotees/${devoteeId}`)
-      .then((r) => r.json())
-      .then((data) => {
-        reset({
-          fullName: data.fullName ?? '',
-          primaryPhone: data.phones?.find((p: { isPrimary: boolean; phoneNumber: string }) => p.isPrimary)?.phoneNumber ?? '',
-          secondaryPhones: data.phones?.filter((p: { isPrimary: boolean; phoneNumber: string }) => !p.isPrimary).map((p: { phoneNumber: string }) => p.phoneNumber) ?? [],
-          primaryCountryCode: '+91',
-          sourceGroupId: data.sourceGroupId,
-          addressLine1: data.addressLine1,
-          addressLine2: data.addressLine2,
-          addressLine3: data.addressLine3,
-          countryId: data.countryId,
-          stateId: data.stateId,
-          districtId: data.districtId,
-          cityId: data.cityId,
-          postalCode: data.postalCode,
-          notes: data.notes,
-        });
+    if (!values.countryId) {
+      setStates([]);
+      return;
+    }
+    const controller = new AbortController();
+    setLoadingStates(true);
+    setServerError('');
+    void fetch(`/api/lookup/states?countryId=${values.countryId}`, {
+      credentials: 'same-origin',
+      cache: 'no-store',
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        if (!response.ok) throw new Error('states');
+        return response.json() as Promise<LookupOption[]>;
       })
-      .catch(() => toast.error('Could not load record.'));
-  }, [devoteeId, reset]);
+      .then((rows) => {
+        if (!controller.signal.aborted) setStates(Array.isArray(rows) ? rows : []);
+      })
+      .catch((error) => {
+        if (error instanceof Error && error.name === 'AbortError') return;
+        if (!controller.signal.aborted) {
+          setStates([]);
+          setServerError('Could not load states. Check internet and try again.');
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoadingStates(false);
+      });
+    return () => controller.abort();
+  }, [values.countryId]);
 
-  // Draft restore on mount (add mode only)
   useEffect(() => {
-    if (isEdit) return;
-    const draft = localStorage.getItem(DRAFT_KEY);
-    if (draft) setShowDraftBanner(true);
-  }, [isEdit]);
+    if (!values.stateId) {
+      setCities([]);
+      return;
+    }
+    const controller = new AbortController();
+    setLoadingCities(true);
+    setServerError('');
+    void fetch(`/api/lookup/cities?stateId=${values.stateId}`, {
+      credentials: 'same-origin',
+      cache: 'no-store',
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        if (!response.ok) throw new Error('cities');
+        return response.json() as Promise<LookupOption[]>;
+      })
+      .then((rows) => {
+        if (!controller.signal.aborted) setCities(Array.isArray(rows) ? rows : []);
+      })
+      .catch((error) => {
+        if (error instanceof Error && error.name === 'AbortError') return;
+        if (!controller.signal.aborted) {
+          setCities([]);
+          setServerError('Could not load cities. Check internet and try again.');
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoadingCities(false);
+      });
+    return () => controller.abort();
+  }, [values.stateId]);
 
-  // Auto-save draft every 30s
-  useEffect(() => {
-    if (isEdit) return;
-    draftTimer.current = setInterval(() => {
-      localStorage.setItem(DRAFT_KEY, JSON.stringify(getValues()));
-    }, 30_000);
-    return () => { if (draftTimer.current) clearInterval(draftTimer.current); };
-  }, [isEdit, getValues]);
-
-  // Duplicate check on primary phone
-  useEffect(() => {
-    if (!primaryPhone || primaryPhone.length < 7) { setDupeResult(null); return; }
-    if (dupeTimer.current) clearTimeout(dupeTimer.current);
-    dupeTimer.current = setTimeout(async () => {
-      setDupeLoading(true);
-      try {
-        const res = await fetch('/api/devotees/check-duplicate', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ phoneNumber: primaryPhone.replace(/\D/g, ''), excludeId: devoteeId }),
-        });
-        const data: DuplicateCheckResult = await res.json();
-        setDupeResult(data.isDuplicate ? data : null);
-      } catch {
-        setDupeResult(null);
-      } finally {
-        setDupeLoading(false);
-      }
-    }, 500);
-    return () => { if (dupeTimer.current) clearTimeout(dupeTimer.current); };
-  }, [primaryPhone, devoteeId]);
-
-  function restoreDraft() {
-    const draft = localStorage.getItem(DRAFT_KEY);
-    if (draft) { reset(JSON.parse(draft) as DevoteeFormInput); }
-    setShowDraftBanner(false);
+  function update(field: keyof FormValues, value: string) {
+    setValues((current) => ({ ...current, [field]: value }));
+    setErrors((current) => ({ ...current, [field]: '' }));
+    setSuccess('');
+    setDuplicateWarning('');
   }
 
-  async function onSubmit(data: DevoteeFormInput) {
-    setSubmitting(true);
+  async function checkDuplicate() {
+    if (!countryIso2) return;
+    const check = normalizeAndCheckMobile(values.mobile, countryIso2);
+    if (!check.ok || check.normalized.length < 7) return;
     try {
-      const body = {
-        ...data,
-        primaryPhone: data.primaryPhone.replace(/\D/g, ''),
-        secondaryPhones: (data.secondaryPhones ?? []).map((p) => p.replace(/\D/g, '')),
-        fullName: data.fullName.trim().replace(/\w\S*/g, (t) => t.charAt(0).toUpperCase() + t.slice(1).toLowerCase()),
-      };
-
-      const url = isEdit ? `/api/devotees/${devoteeId}` : '/api/devotees';
-      const method = isEdit ? 'PATCH' : 'POST';
-      const res = await fetch(url, {
-        method,
+      const response = await fetch('/api/devotees/check-duplicate', {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+        body: JSON.stringify({ mobile: check.normalized, ...(devotee ? { excludeId: devotee.id } : {}) }),
       });
+      const result = await response.json();
+      setDuplicateWarning(result.isDuplicate ? `This mobile is already saved for ${result.existingRecord.fullName}.` : '');
+    } catch {
+      // Submit still performs the authoritative duplicate check.
+    }
+  }
 
-      if (!res.ok) {
-        const err = await res.json();
-        toast.error(err.error ?? 'Something went wrong. Please try again.');
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    setServerError('');
+    setSuccess('');
+    const parsed = devoteeFormSchema.safeParse(values);
+    const nextErrors: Record<string, string> = {};
+    if (!parsed.success) {
+      parsed.error.errors.forEach((error) => { const field = String(error.path[0]); if (!nextErrors[field]) nextErrors[field] = error.message; });
+    }
+    if (isIndia && !/^\d{6}$/.test(values.postalCode.replace(/\D/g, ''))) {
+      nextErrors.postalCode = 'Enter a 6-digit PIN code.';
+    }
+    if (countryIso2) {
+      const phoneCheck = normalizeAndCheckMobile(values.mobile, countryIso2);
+      if (!phoneCheck.ok) {
+        nextErrors.mobile = phoneCheck.error || 'Enter a valid mobile for this country.';
+      }
+    }
+    if (Object.keys(nextErrors).length) {
+      setErrors(nextErrors);
+      window.setTimeout(() => firstErrorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 0);
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const response = await fetch(devotee ? `/api/devotees/${devotee.id}` : '/api/devotees', {
+        method: devotee ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(parsed.success ? parsed.data : values),
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        setServerError(result.error || 'Could not save. Check internet and try again.');
         return;
       }
-
-      const result = await res.json();
-      toast.success(isEdit ? 'Changes saved successfully.' : `Record saved! ID: ${result.id}`);
-      localStorage.removeItem(DRAFT_KEY);
-      if (!isEdit) { reset(); setStep(0); }
-      onSuccess?.(isEdit ? devoteeId! : result.id);
+      if (devotee) {
+        onSaved();
+      } else {
+        setValues((current) => ({ ...blank(Number(current.countryId)), stateId: current.stateId }));
+        setSuccess('Saved. You can add another person.');
+        onSaved();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
     } catch {
-      toast.error('Something went wrong. Please try again.');
+      setServerError('Could not save. Check internet and try again.');
     } finally {
-      setSubmitting(false);
+      setSaving(false);
     }
   }
 
-  function handleCancel() {
-    if (isDirty) {
-      if (!window.confirm('Discard unsaved changes?')) return;
-    }
-    onCancel?.();
-  }
+  const firstError = Object.keys(errors).find((field) => errors[field]);
+  const fieldClass = (field: keyof FormValues) => `mt-2 min-h-12 w-full rounded-lg border bg-white px-3.5 text-base outline-none transition focus:ring-4 ${errors[field] ? 'border-red-400 focus:border-red-500 focus:ring-red-100' : 'border-border focus:border-accent focus:ring-amber-100'}`;
+  const errorFor = (field: keyof FormValues) => errors[field] ? <p className="mt-1.5 text-sm text-red-700">{errors[field]}</p> : null;
 
-  const stepContent = [
-    // ── Step 1: Personal Info ──────────────────────────────────────
-    <div key="step1" className="space-y-5">
-      <div>
-        <label htmlFor="fullName" className="mb-1.5 block text-sm font-medium">
-          Full Name <span className="text-red-500">*</span>
+  return (
+    <form onSubmit={submit} noValidate>
+      <div ref={firstError ? firstErrorRef : undefined} />
+      {success && <div role="status" className="mb-6 flex items-start gap-3 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-green-800"><CheckCircle2 className="mt-0.5 shrink-0" size={19} /><span>{success}</span></div>}
+      {serverError && <p role="alert" className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{serverError}</p>}
+
+      <div className="grid gap-x-5 gap-y-5 md:grid-cols-2">
+        <label className="block font-semibold">Full name <span className="text-red-600">*</span>
+          <input value={values.fullName} onChange={(event) => update('fullName', event.target.value)} autoComplete="name" className={fieldClass('fullName')} />
+          {errorFor('fullName')}
         </label>
-        <input
-          id="fullName"
-          {...register('fullName')}
-          onBlur={(e) => {
-            const titled = e.target.value.trim().replace(/\w\S*/g, (t) => t.charAt(0).toUpperCase() + t.slice(1).toLowerCase());
-            setValue('fullName', titled);
+        <label className="block font-semibold">Mobile number <span className="text-red-600">*</span>
+          <input value={values.mobile} onChange={(event) => update('mobile', event.target.value)} onBlur={() => void checkDuplicate()} inputMode="tel" autoComplete="tel" className={fieldClass('mobile')} />
+          <span className="mt-1.5 block text-sm font-normal text-muted">
+            {countryIso2 ? expectedPhoneHint(countryIso2) : 'Select a country, then enter the mobile number.'}
+          </span>
+          {errorFor('mobile')}
+          {duplicateWarning && <p className="mt-2 rounded-md bg-amber-50 px-3 py-2 text-sm font-normal text-amber-800">{duplicateWarning}</p>}
+        </label>
+        <label className="block font-semibold md:col-span-2">Address <span className="text-red-600">*</span>
+          <textarea value={values.address} onChange={(event) => update('address', event.target.value)} rows={3} autoComplete="street-address" className={`${fieldClass('address')} py-3`} />
+          {errorFor('address')}
+        </label>
+        <label className="block font-semibold">Country <span className="text-red-600">*</span>
+          <select value={values.countryId} onChange={(event) => {
+            const next = event.target.value;
+            setValues((current) => ({ ...current, countryId: next, stateId: '', cityId: '', postalCode: countries.find((item) => String(item.id) === next)?.iso2 === 'IN' ? current.postalCode : '' }));
+            setStates([]); setCities([]); setErrors({}); setSuccess('');
+          }} className={fieldClass('countryId')}>
+            <option value="">Choose country</option>
+            {countries.map((country) => <option key={country.id} value={country.id}>{country.name}</option>)}
+          </select>
+          {errorFor('countryId')}
+        </label>
+        <LookupCombobox
+          label="State"
+          required
+          value={values.stateId}
+          options={states}
+          selectedLabel={devotee?.stateName}
+          disabled={!values.countryId}
+          loading={loadingStates}
+          placeholder={values.countryId ? 'Type state name' : 'Select country first'}
+          onChange={(next) => {
+            setValues((current) => ({ ...current, stateId: next, cityId: '' }));
+            setCities([]);
+            setErrors((current) => ({ ...current, stateId: '', cityId: '' }));
           }}
-          className={`h-10 w-full rounded-md border px-3 text-sm focus:outline-none focus:ring-2 focus:ring-accent ${errors.fullName ? 'border-red-400' : 'border-border'}`}
-          placeholder="e.g. Venkata Rao Kotha"
-          aria-describedby={errors.fullName ? 'fullName-error' : undefined}
+          error={errors.stateId}
         />
-        {errors.fullName && <p id="fullName-error" className="mt-1 text-xs text-red-600">{errors.fullName.message}</p>}
-      </div>
-
-      <div>
-        <label htmlFor="primaryPhone" className="mb-1.5 block text-sm font-medium">
-          Primary Mobile <span className="text-red-500">*</span>
+        <LookupCombobox
+          label="City"
+          required
+          value={values.cityId}
+          options={cities}
+          selectedLabel={devotee?.cityName}
+          disabled={!values.stateId}
+          loading={loadingCities}
+          placeholder={values.stateId ? 'Type city name' : 'Select state first'}
+          onChange={(next) => update('cityId', next)}
+          error={errors.cityId}
+        />
+        {isIndia && <label className="block font-semibold">PIN code <span className="text-red-600">*</span>
+          <input value={values.postalCode} onChange={(event) => update('postalCode', event.target.value)} inputMode="numeric" autoComplete="postal-code" maxLength={6} className={fieldClass('postalCode')} />
+          {errorFor('postalCode')}
+        </label>}
+        <label className="block font-semibold md:col-span-2">Email <span className="font-normal text-muted">(optional)</span>
+          <input value={values.email} onChange={(event) => update('email', event.target.value)} type="email" autoComplete="email" className={fieldClass('email')} />
+          {errorFor('email')}
         </label>
-        <input
-          id="primaryPhone"
-          {...register('primaryPhone')}
-          inputMode="numeric"
-          className={`h-10 w-full rounded-md border px-3 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-accent ${errors.primaryPhone ? 'border-red-400' : 'border-border'}`}
-          placeholder="10-digit mobile number"
-          aria-describedby={errors.primaryPhone ? 'primaryPhone-error' : undefined}
-        />
-        {errors.primaryPhone && <p id="primaryPhone-error" className="mt-1 text-xs text-red-600">{errors.primaryPhone.message}</p>}
-        {dupeLoading && <p className="mt-1 text-xs text-muted">Checking for duplicates…</p>}
-        {dupeResult && (
-          <div className="mt-2 flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800">
-            <AlertTriangle size={16} className="mt-0.5 shrink-0" />
-            <div>
-              <p className="font-medium">Possible duplicate</p>
-              <p className="mt-0.5 text-xs">{dupeResult.warnings[0]}</p>
-              {dupeResult.existingRecord && (
-                <a href={`/admin/devotees/${dupeResult.existingRecord.id}`} className="mt-1 block text-xs font-medium underline">
-                  View existing record →
-                </a>
-              )}
-            </div>
-          </div>
-        )}
       </div>
 
-      <div>
-        <label className="mb-1.5 block text-sm font-medium">Secondary Mobiles</label>
-        {(watch('secondaryPhones') ?? []).map((_, i) => (
-          <div key={i} className="mb-2 flex gap-2">
-            <input
-              {...register(`secondaryPhones.${i}`)}
-              inputMode="numeric"
-              className="h-10 flex-1 rounded-md border border-border px-3 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-accent"
-              placeholder="Secondary number"
-            />
-            <button
-              type="button"
-              onClick={() => {
-                const phones = getValues('secondaryPhones') ?? [];
-                setValue('secondaryPhones', phones.filter((_, idx) => idx !== i));
-              }}
-              className="flex h-10 w-10 items-center justify-center rounded-md border border-border text-muted hover:bg-red-50 hover:text-red-600"
-              aria-label="Remove phone"
-            >
-              <Trash2 size={14} />
-            </button>
-          </div>
-        ))}
-        {(watch('secondaryPhones') ?? []).length < 5 && (
-          <button
-            type="button"
-            onClick={() => setValue('secondaryPhones', [...(getValues('secondaryPhones') ?? []), ''])}
-            className="flex items-center gap-1.5 text-sm font-medium text-accent hover:underline"
-          >
-            <Plus size={14} /> Add another number
-          </button>
-        )}
+      <div className="sticky bottom-0 z-10 -mx-5 mt-7 flex gap-3 border-t border-border bg-white/95 px-5 py-4 backdrop-blur md:static md:mx-0 md:justify-end md:border-0 md:bg-transparent md:px-0 md:pb-0">
+        {onCancel && <button type="button" onClick={onCancel} className="h-12 flex-1 rounded-lg border border-border px-5 font-semibold transition hover:bg-gray-50 md:flex-none">Cancel</button>}
+        <button disabled={saving || Boolean(duplicateWarning)} className="h-12 flex-1 rounded-lg bg-accent px-6 font-semibold text-white shadow-sm transition hover:bg-accent-hover focus:outline-none focus:ring-4 focus:ring-amber-200 disabled:cursor-not-allowed disabled:opacity-55 md:flex-none">
+          {saving ? 'Saving…' : devotee ? 'Save changes' : 'Save person'}
+        </button>
       </div>
-
-      <div>
-        <label className="mb-1.5 block text-sm font-medium">
-          Chapter / Group <span className="text-red-500">*</span>
-        </label>
-        <FuzzyCombobox
-          options={groups}
-          value={watch('sourceGroupId') ?? null}
-          onChange={(v) => setValue('sourceGroupId', v ?? undefined, { shouldValidate: true })}
-          placeholder="Select chapter"
-          aria-describedby={errors.sourceGroupId ? 'sourceGroupId-error' : undefined}
-        />
-        {errors.sourceGroupId && <p id="sourceGroupId-error" className="mt-1 text-xs text-red-600">{errors.sourceGroupId.message}</p>}
-      </div>
-    </div>,
-
-    // ── Step 2: Address ────────────────────────────────────────────
-    <div key="step2" className="space-y-5">
-      {(['addressLine1', 'addressLine2', 'addressLine3'] as const).map((field, i) => (
-        <div key={field}>
-          <label htmlFor={field} className="mb-1.5 block text-sm font-medium">
-            {['Address Line 1', 'Address Line 2', 'Address Line 3'][i]}
-            {i === 0 && <span className="ml-1 text-xs text-muted">(Building / Door No.)</span>}
-            {i === 1 && <span className="ml-1 text-xs text-muted">(Society / Layout)</span>}
-            {i === 2 && <span className="ml-1 text-xs text-muted">(Area / Colony)</span>}
-          </label>
-          <input
-            id={field}
-            {...register(field)}
-            className="h-10 w-full rounded-md border border-border px-3 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
-          />
-        </div>
-      ))}
-
-      <LocationCascade
-        value={locationValue}
-        onChange={(v) => {
-          setValue('countryId', v.countryId);
-          setValue('stateId', v.stateId);
-          setValue('districtId', v.districtId);
-          setValue('cityId', v.cityId);
-        }}
-        required={{ country: false, state: false }}
-      />
-
-      <div>
-        <label htmlFor="postalCode" className="mb-1.5 block text-sm font-medium">PIN / ZIP Code</label>
-        <input
-          id="postalCode"
-          {...register('postalCode')}
-          inputMode="numeric"
-          className="h-10 w-full rounded-md border border-border px-3 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-accent"
-          placeholder="e.g. 560001"
-        />
-      </div>
-    </div>,
-
-    // ── Step 3: Review & Confirm ───────────────────────────────────
-    <div key="step3" className="space-y-4">
-      <div className="rounded-lg border border-border bg-gray-50 p-4 text-sm">
-        <ReviewRow label="Full Name" value={watchedValues.fullName} />
-        <ReviewRow label="Primary Mobile" value={watchedValues.primaryPhone ? formatPhone(watchedValues.primaryPhone) : ''} mono />
-        {(watchedValues.secondaryPhones ?? []).filter(Boolean).map((p, i) => (
-          <ReviewRow key={i} label={`Secondary Mobile ${i + 1}`} value={formatPhone(p)} mono />
-        ))}
-        <ReviewRow label="Chapter" value={groups.find((g) => g.id === watchedValues.sourceGroupId)?.name ?? ''} />
-        <ReviewRow label="Address Line 1" value={watchedValues.addressLine1 ?? ''} />
-        <ReviewRow label="Address Line 2" value={watchedValues.addressLine2 ?? ''} />
-        <ReviewRow label="Address Line 3" value={watchedValues.addressLine3 ?? ''} />
-        <ReviewRow label="PIN Code" value={watchedValues.postalCode ?? ''} mono />
-      </div>
-      <div className="flex gap-3 text-sm">
-        <button type="button" onClick={() => setStep(0)} className="text-accent hover:underline">← Edit Step 1</button>
-        <button type="button" onClick={() => setStep(1)} className="text-accent hover:underline">← Edit Step 2</button>
-      </div>
-    </div>,
-  ];
-
-  return (
-    <div className="w-full">
-      {/* Draft banner */}
-      {showDraftBanner && (
-        <div className="mb-4 flex items-center justify-between rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          <span>You have an unsaved draft. Restore it?</span>
-          <div className="flex gap-3">
-            <button onClick={restoreDraft} className="font-medium underline">Restore</button>
-            <button onClick={() => { localStorage.removeItem(DRAFT_KEY); setShowDraftBanner(false); }} className="text-muted">Discard</button>
-          </div>
-        </div>
-      )}
-
-      {/* Progress bar */}
-      {!isEdit && (
-        <div className="mb-6">
-          <div className="flex items-center gap-2">
-            {STEPS.map((label, i) => (
-              <div key={i} className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => i < step && setStep(i)}
-                  className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold transition ${
-                    i < step ? 'bg-accent text-white cursor-pointer' :
-                    i === step ? 'bg-accent text-white' :
-                    'bg-gray-200 text-muted cursor-default'
-                  }`}
-                >
-                  {i < step ? <CheckCircle2 size={14} /> : i + 1}
-                </button>
-                <span className={`text-xs ${i === step ? 'font-medium' : 'text-muted'}`}>{label}</span>
-                {i < STEPS.length - 1 && <div className={`h-px w-8 ${i < step ? 'bg-accent' : 'bg-gray-200'}`} />}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      <form onSubmit={handleSubmit(onSubmit)}>
-        {isEdit ? (
-          <div className="space-y-5">
-            {stepContent[0]}
-            <div className="border-t border-border pt-5">{stepContent[1]}</div>
-          </div>
-        ) : (
-          stepContent[step]
-        )}
-
-        {/* Navigation buttons */}
-        <div className="mt-6 flex items-center justify-between gap-3">
-          {onCancel && (
-            <button type="button" onClick={handleCancel} className="h-10 rounded-md border border-border px-4 text-sm font-medium hover:bg-gray-50">
-              Cancel
-            </button>
-          )}
-          <div className="ml-auto flex gap-3">
-            {!isEdit && step > 0 && (
-              <button type="button" onClick={() => setStep((s) => s - 1)} className="h-10 rounded-md border border-border px-4 text-sm font-medium hover:bg-gray-50">
-                ← Back
-              </button>
-            )}
-            {!isEdit && step < STEPS.length - 1 ? (
-              <button
-                type="button"
-                onClick={async () => {
-                  // Validate current step fields before advancing
-                  const stepFields: (keyof DevoteeFormInput)[][] = [
-                    ['fullName', 'primaryPhone', 'sourceGroupId'],
-                    ['countryId'],
-                  ];
-                  const valid = stepFields[step]?.every((f) => !errors[f]) ?? true;
-                  if (valid) setStep((s) => s + 1);
-                }}
-                className="h-10 rounded-md bg-accent px-5 text-sm font-medium text-white hover:bg-accent-hover"
-              >
-                Next →
-              </button>
-            ) : (
-              <button
-                type="submit"
-                disabled={submitting}
-                className="h-10 rounded-md bg-accent px-5 text-sm font-medium text-white hover:bg-accent-hover disabled:opacity-50"
-              >
-                {submitting ? (
-                  <span className="flex items-center gap-2">
-                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                    {isEdit ? 'Saving…' : 'Submitting…'}
-                  </span>
-                ) : isEdit ? 'Save Changes' : 'Submit Record'}
-              </button>
-            )}
-          </div>
-        </div>
-      </form>
-    </div>
-  );
-}
-
-function ReviewRow({ label, value, mono = false }: { label: string; value: string; mono?: boolean }) {
-  if (!value) return null;
-  return (
-    <div className="flex gap-3 border-b border-gray-100 py-2 last:border-0">
-      <span className="w-36 shrink-0 text-muted">{label}</span>
-      <span className={mono ? 'font-mono' : ''}>{value}</span>
-    </div>
+    </form>
   );
 }

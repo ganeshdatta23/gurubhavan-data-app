@@ -1,41 +1,38 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyToken } from '@/lib/auth';
+import { jwtVerify } from 'jose';
+import { absoluteUrl } from '@/lib/request-origin';
+import type { SessionPayload } from '@/types';
 
 const COOKIE_NAME = 'dr_session';
 
+async function verifySessionToken(token: string): Promise<SessionPayload | null> {
+  try {
+    const secret = new TextEncoder().encode(
+      process.env.JWT_SECRET ?? 'dev-secret-change-in-production',
+    );
+    const { payload } = await jwtVerify(token, secret);
+    if (payload.role !== 'admin' || typeof payload.userId !== 'number') return null;
+    return payload as unknown as SessionPayload;
+  } catch {
+    return null;
+  }
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  const token = request.cookies.get(COOKIE_NAME)?.value;
+  const session = token ? await verifySessionToken(token) : null;
 
-  // Protect /admin/* pages
-  if (pathname.startsWith('/admin')) {
-    const token = request.cookies.get(COOKIE_NAME)?.value;
-    const session = token ? await verifyToken(token) : null;
-
-    if (!session) {
-      const loginUrl = new URL('/login', request.url);
-      loginUrl.searchParams.set('from', pathname);
-      return NextResponse.redirect(loginUrl);
-    }
-
-    // Viewers and members cannot access admin pages
-    if (session.role === 'member') {
-      return NextResponse.redirect(new URL('/profile', request.url));
-    }
+  if (pathname.startsWith('/admin') && !session) {
+    return NextResponse.redirect(absoluteUrl(request, '/login'));
   }
-
-  // Protect /api/admin/* — return 401/403 JSON instead of redirect
-  if (pathname.startsWith('/api/') && !pathname.startsWith('/api/auth') && !pathname.startsWith('/api/webhooks')) {
-    const token = request.cookies.get(COOKIE_NAME)?.value;
-    const session = token ? await verifyToken(token) : null;
-
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+  if (pathname.startsWith('/api/') && !pathname.startsWith('/api/auth') && !session) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
-
+  if (pathname === '/login' && session) {
+    return NextResponse.redirect(absoluteUrl(request, '/admin'));
+  }
   return NextResponse.next();
 }
 
-export const config = {
-  matcher: ['/admin/:path*', '/api/:path*'],
-};
+export const config = { matcher: ['/admin/:path*', '/login', '/api/:path*'] };

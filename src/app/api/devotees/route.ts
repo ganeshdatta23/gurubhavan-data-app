@@ -1,63 +1,53 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSession } from '@/lib/auth';
-import { listDevotees } from '@/db/queries/devotees';
 import { db } from '@/db';
-import { devotees, devoteePhones, reviewFlags } from '@/db/schema';
-import { devoteeQuerySchema, devoteeFormSchema } from '@/lib/validators/index';
-import { eq, isNull } from 'drizzle-orm';
+import { devotees } from '@/db/schema';
+import { listDevotees } from '@/db/queries/devotees';
+import { findActiveDuplicate, normalizeDevoteeMobile, validateLocation } from '@/lib/devotee-service';
+import { requireAdmin } from '@/lib/auth';
+import { devoteeFormSchema, devoteeQuerySchema } from '@/lib/validators';
 
 export async function GET(request: NextRequest) {
-  const session = await getSession();
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
-  const params = Object.fromEntries(request.nextUrl.searchParams);
-  const parsed = devoteeQuerySchema.safeParse(params);
-  if (!parsed.success) {
-    return NextResponse.json({ error: parsed.error.errors[0].message }, { status: 400 });
-  }
-
-  // Scope admins to their chapter
-  if (session.role === 'admin' && session.sourceGroupId) {
-    parsed.data.sourceGroupId = session.sourceGroupId;
-  }
+  await requireAdmin();
+  const parsed = devoteeQuerySchema.safeParse(Object.fromEntries(request.nextUrl.searchParams));
+  if (!parsed.success) return NextResponse.json({ error: parsed.error.errors[0].message }, { status: 400 });
 
   const { rows, total } = await listDevotees(parsed.data);
   return NextResponse.json({
     data: rows,
     pagination: {
       page: parsed.data.page,
-      limit: parsed.data.limit,
+      pageSize: parsed.data.pageSize,
       total,
-      totalPages: Math.ceil(total / parsed.data.limit),
+      totalPages: Math.max(1, Math.ceil(total / parsed.data.pageSize)),
     },
   });
 }
 
 export async function POST(request: NextRequest) {
-  const session = await getSession();
-  if (!session || (session.role !== 'super_admin' && session.role !== 'admin')) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  const session = await requireAdmin();
+  const parsed = devoteeFormSchema.safeParse(await request.json().catch(() => ({})));
+  if (!parsed.success) return NextResponse.json({ error: parsed.error.errors[0].message }, { status: 400 });
+
+  const locationError = await validateLocation(parsed.data);
+  if (locationError) return NextResponse.json({ error: locationError }, { status: 400 });
+  const normalized = await normalizeDevoteeMobile(parsed.data);
+  if ('error' in normalized) return NextResponse.json({ error: normalized.error }, { status: 400 });
+  const mobile = normalized.mobile;
+  const duplicate = await findActiveDuplicate(mobile);
+  if (duplicate) {
+    return NextResponse.json({ error: `That mobile number is already saved for ${duplicate.fullName}.`, duplicate }, { status: 409 });
   }
 
-  const body = await request.json().catch(() => null);
-  const parsed = devoteeFormSchema.safeParse(body);
-  if (!parsed.success) {
-    return NextResponse.json({ error: parsed.error.errors[0].message }, { status: 400 });
-  }
-
-  const { primaryPhone, secondaryPhones, primaryCountryCode, ...devoteeData } = parsed.data;
-
-  const [devotee] = await db
-    .insert(devotees)
-    .values({ ...devoteeData, createdBy: session.userId, recordStatus: 'needs_review' })
-    .returning();
-
-  // Insert phones
-  const phoneRows = [
-    { devoteeId: devotee.id, phoneNumber: primaryPhone, isPrimary: true, countryCode: primaryCountryCode },
-    ...secondaryPhones.map((p) => ({ devoteeId: devotee.id, phoneNumber: p, isPrimary: false, countryCode: primaryCountryCode })),
-  ];
-  await db.insert(devoteePhones).values(phoneRows);
-
-  return NextResponse.json({ id: devotee.id }, { status: 201 });
+  const now = new Date();
+  const [created] = await db.insert(devotees).values({
+    ...parsed.data,
+    mobile,
+    postalCode: parsed.data.postalCode || null,
+    email: parsed.data.email || null,
+    createdBy: session.userId,
+    updatedBy: session.userId,
+    createdAt: now,
+    updatedAt: now,
+  }).returning({ id: devotees.id });
+  return NextResponse.json(created, { status: 201 });
 }
