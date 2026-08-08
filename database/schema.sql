@@ -16,10 +16,20 @@ CREATE TABLE IF NOT EXISTS states (
 CREATE INDEX IF NOT EXISTS states_country_idx ON states(country_id);
 CREATE UNIQUE INDEX IF NOT EXISTS states_country_name_unique ON states(name, country_id);
 
-CREATE TABLE IF NOT EXISTS cities (
+CREATE TABLE IF NOT EXISTS districts (
   id INTEGER PRIMARY KEY AUTOINCREMENT, state_id INTEGER NOT NULL REFERENCES states(id) ON DELETE RESTRICT,
   name TEXT NOT NULL, created_at INTEGER NOT NULL DEFAULT (unixepoch())
 );
+CREATE INDEX IF NOT EXISTS districts_state_idx ON districts(state_id);
+CREATE UNIQUE INDEX IF NOT EXISTS districts_state_name_unique ON districts(name, state_id);
+
+CREATE TABLE IF NOT EXISTS cities (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  district_id INTEGER REFERENCES districts(id) ON DELETE RESTRICT,
+  state_id INTEGER NOT NULL REFERENCES states(id) ON DELETE RESTRICT,
+  name TEXT NOT NULL, created_at INTEGER NOT NULL DEFAULT (unixepoch())
+);
+CREATE INDEX IF NOT EXISTS cities_district_idx ON cities(district_id);
 CREATE INDEX IF NOT EXISTS cities_state_idx ON cities(state_id);
 CREATE UNIQUE INDEX IF NOT EXISTS cities_state_name_unique ON cities(name, state_id);
 
@@ -45,6 +55,7 @@ CREATE TABLE IF NOT EXISTS devotees (
   linked_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
   full_name TEXT NOT NULL, address_line1 TEXT, address_line2 TEXT, address_line3 TEXT,
   city_id INTEGER REFERENCES cities(id) ON DELETE SET NULL,
+  district_id INTEGER REFERENCES districts(id) ON DELETE SET NULL,
   state_id INTEGER REFERENCES states(id) ON DELETE SET NULL,
   country_id INTEGER REFERENCES countries(id) ON DELETE SET NULL,
   postal_code TEXT,
@@ -57,6 +68,7 @@ CREATE TABLE IF NOT EXISTS devotees (
 CREATE INDEX IF NOT EXISTS devotees_name_idx ON devotees(full_name);
 CREATE INDEX IF NOT EXISTS devotees_record_status_idx ON devotees(record_status);
 CREATE INDEX IF NOT EXISTS devotees_city_idx ON devotees(city_id);
+CREATE INDEX IF NOT EXISTS devotees_district_idx ON devotees(district_id);
 CREATE INDEX IF NOT EXISTS devotees_state_idx ON devotees(state_id);
 CREATE INDEX IF NOT EXISTS devotees_country_idx ON devotees(country_id);
 CREATE INDEX IF NOT EXISTS devotees_source_group_idx ON devotees(source_group_id);

@@ -1,5 +1,5 @@
 import { db } from '@/db';
-import { countries, states, cities, sourceGroups } from '@/db/schema';
+import { countries, states, districts, cities, sourceGroups } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 
 export async function getCountries() {
@@ -18,11 +18,27 @@ export async function getStates() {
   return db.select({ id: states.id, name: states.name, countryId: states.countryId }).from(states).orderBy(states.name);
 }
 
+export async function getDistrictsByState(stateId: number) {
+  return db
+    .select({ id: districts.id, name: districts.name })
+    .from(districts)
+    .where(eq(districts.stateId, stateId))
+    .orderBy(districts.name);
+}
+
 export async function getCitiesByState(stateId: number) {
   return db
     .select({ id: cities.id, name: cities.name })
     .from(cities)
     .where(eq(cities.stateId, stateId))
+    .orderBy(cities.name);
+}
+
+export async function getCitiesByDistrict(districtId: number) {
+  return db
+    .select({ id: cities.id, name: cities.name })
+    .from(cities)
+    .where(eq(cities.districtId, districtId))
     .orderBy(cities.name);
 }
 

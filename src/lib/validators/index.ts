@@ -33,6 +33,7 @@ export const devoteeFormSchema = z.object({
   addressLine3: z.string().max(200).optional().nullable(),
   countryId: z.number().int().positive().optional().nullable(),
   stateId: z.number().int().positive().optional().nullable(),
+  districtId: z.number().int().positive().optional().nullable(),
   cityId: z.number().int().positive().optional().nullable(),
   postalCode,
   notes: z.string().max(1000).optional().nullable(),
@@ -47,13 +48,16 @@ export const devoteeQuerySchema = z.object({
   status: z.enum(['clean', 'needs_review', 'duplicate']).optional(),
   countryId: z.coerce.number().int().positive().optional(),
   stateId: z.coerce.number().int().positive().optional(),
+  districtId: z.coerce.number().int().positive().optional(),
   cityId: z.coerce.number().int().positive().optional(),
   sourceGroupId: z.coerce.number().int().positive().optional(),
   hasFlags: z.coerce.boolean().optional(),
   whatsappOptedIn: z.coerce.boolean().optional(),
+  createdAfter: z.string().optional(),
+  createdBefore: z.string().optional(),
   page: z.coerce.number().int().positive().default(1),
-  limit: z.coerce.number().int().positive().max(200).default(50),
-  sort: z.enum(['name_asc', 'name_desc', 'created_desc', 'status']).default('name_asc'),
+  limit: z.coerce.number().int().positive().max(200).default(25),
+  sort: z.enum(['name_asc', 'name_desc', 'created_desc', 'created_asc', 'updated_desc', 'status']).default('name_asc'),
 });
 
 export const checkDuplicateSchema = z.object({
