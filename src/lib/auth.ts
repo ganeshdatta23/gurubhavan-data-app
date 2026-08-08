@@ -9,11 +9,13 @@ import type { SessionPayload } from '@/types';
 const SECRET = new TextEncoder().encode(process.env.JWT_SECRET ?? 'dev-secret-change-in-production');
 const COOKIE_NAME = 'dr_session';
 
+const SESSION_MAX_AGE_SEC = 60 * 60 * 24 * 30; // 1 month
+
 export async function signToken(payload: SessionPayload) {
   return new SignJWT({ ...payload })
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
-    .setExpirationTime('7d')
+    .setExpirationTime(`${SESSION_MAX_AGE_SEC}s`)
     .sign(SECRET);
 }
 
@@ -38,7 +40,7 @@ export async function createSession(payload: SessionPayload) {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
-    maxAge: 60 * 60 * 24 * 7,
+    maxAge: SESSION_MAX_AGE_SEC,
     path: '/',
   });
 }
