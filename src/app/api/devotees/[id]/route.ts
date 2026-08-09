@@ -34,20 +34,33 @@ export async function PUT(request: NextRequest, { params }: Context) {
   const normalized = await normalizeDevoteeMobile(parsed.data);
   if ('error' in normalized) return NextResponse.json({ error: normalized.error }, { status: 400 });
   const mobile = normalized.mobile;
-  const duplicate = await findActiveDuplicate(mobile, id);
+  const duplicate = await findActiveDuplicate(mobile, parsed.data.countryId, id);
   if (duplicate) return NextResponse.json({ error: `That mobile number is already saved for ${duplicate.fullName}.` }, { status: 409 });
 
-  const result = await db.update(devotees).set({
-    ...parsed.data,
-    mobile,
-    postalCode: parsed.data.postalCode || null,
-    email: parsed.data.email || null,
-    updatedBy: session.userId,
-    updatedAt: new Date(),
-  }).where(and(eq(devotees.id, id), isNull(devotees.deletedAt))).returning({ id: devotees.id });
-  return result.length
-    ? NextResponse.json({ id })
-    : NextResponse.json({ error: 'Person not found.' }, { status: 404 });
+  try {
+    const result = await db.update(devotees).set({
+      ...parsed.data,
+      mobile,
+      postalCode: parsed.data.postalCode || null,
+      email: parsed.data.email || null,
+      updatedBy: session.userId,
+      updatedAt: new Date(),
+    }).where(and(eq(devotees.id, id), isNull(devotees.deletedAt))).returning({ id: devotees.id });
+    return result.length
+      ? NextResponse.json({ id })
+      : NextResponse.json({ error: 'Person not found.' }, { status: 404 });
+  } catch (error) {
+    if (error instanceof Error && /unique constraint|unique failed/i.test(error.message)) {
+      const concurrentDuplicate = await findActiveDuplicate(mobile, parsed.data.countryId, id);
+      return NextResponse.json({
+        error: concurrentDuplicate
+          ? `That mobile number is already saved for ${concurrentDuplicate.fullName}.`
+          : 'That mobile number was changed by another request. Please search before trying again.',
+        duplicate: concurrentDuplicate,
+      }, { status: 409 });
+    }
+    throw error;
+  }
 }
 
 export const PATCH = PUT;

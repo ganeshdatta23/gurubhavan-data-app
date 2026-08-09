@@ -41,11 +41,13 @@ export async function normalizeDevoteeMobile(
   return { mobile: check.normalized };
 }
 
-export async function findActiveDuplicate(mobile: string, excludeId?: number) {
+export async function findActiveDuplicate(mobile: string, countryId: number, excludeId?: number) {
   const variants = mobileMatchVariants(mobile);
   if (!variants.length) return null;
 
-  const conditions = [inArray(devotees.mobile, variants), isNull(devotees.deletedAt)];
+  // Variants are retained for older rows, but country scoping prevents a US
+  // number and an Indian number with the same national digits from colliding.
+  const conditions = [eq(devotees.countryId, countryId), inArray(devotees.mobile, variants), isNull(devotees.deletedAt)];
   if (excludeId) conditions.push(ne(devotees.id, excludeId));
   const [row] = await db.select({ id: devotees.id, fullName: devotees.fullName })
     .from(devotees)

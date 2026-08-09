@@ -49,6 +49,7 @@ export const sendMessagesSchema = z.object({
 
 export const duplicateCheckSchema = z.object({
   mobile: z.string().transform((value) => value.replace(/\D/g, '')).pipe(z.string().min(7).max(15)),
+  countryId: positiveId,
   excludeId: z.number().int().positive().optional(),
 });
 

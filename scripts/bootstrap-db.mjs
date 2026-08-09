@@ -86,6 +86,22 @@ const appStatements = [
 ];
 for (const sql of appStatements) await client.execute(sql);
 
+const duplicateGroups = await client.execute(`
+  SELECT country_id, mobile, COUNT(*) AS count
+  FROM devotees
+  WHERE deleted_at IS NULL
+  GROUP BY country_id, mobile
+  HAVING COUNT(*) > 1
+  LIMIT 20
+`);
+if (duplicateGroups.rows.length) {
+  const examples = duplicateGroups.rows
+    .map((row) => `country ${row.country_id}, mobile ${row.mobile} (${row.count} records)`)
+    .join('; ');
+  throw new Error(`Cannot add active mobile uniqueness yet. Resolve these duplicate groups first: ${examples}`);
+}
+await client.execute('CREATE UNIQUE INDEX IF NOT EXISTS devotees_active_mobile_unique ON devotees(country_id, mobile) WHERE deleted_at IS NULL');
+
 const accounts = [
   { id: 1, username: 'lakshminarayana', password: 'Gurubhavan@1942', name: 'Lakshminarayana' },
   { id: 2, username: 'volunteer', password: 'sdhsVol@1942', name: 'Volunteer' },
