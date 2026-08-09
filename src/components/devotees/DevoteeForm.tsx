@@ -140,7 +140,7 @@ export function DevoteeForm({ countries, defaultCountryId, devotee, onSaved, onC
       const response = await fetch('/api/devotees/check-duplicate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mobile: check.normalized, ...(devotee ? { excludeId: devotee.id } : {}) }),
+        body: JSON.stringify({ mobile: check.normalized, countryId: Number(values.countryId), ...(devotee ? { excludeId: devotee.id } : {}) }),
       });
       const result = await response.json();
       setDuplicateWarning(result.isDuplicate ? `This mobile is already saved for ${result.existingRecord.fullName}.` : '');

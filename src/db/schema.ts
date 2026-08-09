@@ -84,6 +84,9 @@ export const devotees = sqliteTable(
   (table) => ({
     nameIdx: index('devotees_name_idx').on(table.fullName),
     mobileIdx: index('devotees_mobile_idx').on(table.mobile),
+    activeMobileUniqueIdx: uniqueIndex('devotees_active_mobile_unique')
+      .on(table.countryId, table.mobile)
+      .where(sql`${table.deletedAt} IS NULL`),
     cityIdx: index('devotees_city_idx').on(table.cityId),
     stateIdx: index('devotees_state_idx').on(table.stateId),
     countryIdx: index('devotees_country_idx').on(table.countryId),

@@ -61,6 +61,8 @@ CREATE TABLE IF NOT EXISTS devotees (
 );
 CREATE INDEX IF NOT EXISTS devotees_name_idx ON devotees(full_name);
 CREATE INDEX IF NOT EXISTS devotees_mobile_idx ON devotees(mobile);
+CREATE UNIQUE INDEX IF NOT EXISTS devotees_active_mobile_unique
+  ON devotees(country_id, mobile) WHERE deleted_at IS NULL;
 CREATE INDEX IF NOT EXISTS devotees_city_idx ON devotees(city_id);
 CREATE INDEX IF NOT EXISTS devotees_state_idx ON devotees(state_id);
 CREATE INDEX IF NOT EXISTS devotees_country_idx ON devotees(country_id);
