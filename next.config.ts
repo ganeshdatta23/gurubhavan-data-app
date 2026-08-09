@@ -1,6 +1,7 @@
 import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
+  agentRules: false,
   serverExternalPackages: ['@libsql/client', 'exceljs'],
   // Allow opening the dev server via LAN IP (e.g. http://192.168.x.x:3000)
   // so client chunks / HMR are not blocked with 403.

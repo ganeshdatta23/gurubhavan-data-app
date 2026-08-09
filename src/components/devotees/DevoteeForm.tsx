@@ -4,7 +4,7 @@ import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { CheckCircle2 } from 'lucide-react';
 import { expectedPhoneHint, normalizeAndCheckMobile } from '@/lib/phone';
 import { devoteeFormSchema } from '@/lib/validators';
-import { LookupCombobox } from '@/components/shared/LookupCombobox';
+import { LOOKUP_OTHER_ID, LookupCombobox } from '@/components/shared/LookupCombobox';
 import type { DevoteeListItem, LookupOption } from '@/types';
 
 type FormValues = {
@@ -26,12 +26,23 @@ type Props = {
   onCancel?: () => void;
 };
 
+const OTHER = String(LOOKUP_OTHER_ID);
+
 const blank = (countryId?: number): FormValues => ({
   fullName: '', mobile: '', address: '', countryId: countryId ? String(countryId) : '',
   stateId: '', cityId: '', postalCode: '', email: '',
 });
 
-export function DevoteeForm({ countries, defaultCountryId, devotee, onSaved, onCancel }: Props) {
+type CreateLookupResponse = {
+  id?: number;
+  name?: string;
+  iso2?: string;
+  error?: string;
+  existingId?: number;
+};
+
+export function DevoteeForm({ countries: initialCountries, defaultCountryId, devotee, onSaved, onCancel }: Props) {
+  const [countryOptions, setCountryOptions] = useState<LookupOption[]>(initialCountries);
   const [values, setValues] = useState<FormValues>(() => devotee ? {
     fullName: devotee.fullName,
     mobile: devotee.mobile,
@@ -51,17 +62,48 @@ export function DevoteeForm({ countries, defaultCountryId, devotee, onSaved, onC
   const [success, setSuccess] = useState('');
   const [saving, setSaving] = useState(false);
   const [duplicateWarning, setDuplicateWarning] = useState('');
+  const [customCountry, setCustomCountry] = useState('');
+  const [customState, setCustomState] = useState('');
+  const [customCity, setCustomCity] = useState('');
+  const [addingCountry, setAddingCountry] = useState(false);
+  const [addingState, setAddingState] = useState(false);
+  const [addingCity, setAddingCity] = useState(false);
   const firstErrorRef = useRef<HTMLDivElement>(null);
   const selectedCountry = useMemo(
-    () => countries.find((country) => String(country.id) === values.countryId),
-    [countries, values.countryId],
+    () => countryOptions.find((country) => String(country.id) === values.countryId),
+    [countryOptions, values.countryId],
   );
   const isIndia = selectedCountry?.iso2?.toUpperCase() === 'IN';
   const countryIso2 = selectedCountry?.iso2?.toUpperCase() ?? '';
+  const countryIsOther = values.countryId === OTHER;
+  const stateIsOther = values.stateId === OTHER;
+  const cityIsOther = values.cityId === OTHER;
+
+  // Keep country list fresh after adds (and after remount on tab switch).
+  useEffect(() => {
+    const controller = new AbortController();
+    void fetch('/api/lookup/countries', {
+      credentials: 'same-origin',
+      cache: 'no-store',
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        if (!response.ok) throw new Error('countries');
+        return response.json() as Promise<LookupOption[]>;
+      })
+      .then((rows) => {
+        if (!controller.signal.aborted && Array.isArray(rows) && rows.length) {
+          setCountryOptions(rows);
+        }
+      })
+      .catch(() => {
+        // Keep the server-rendered list if refresh fails.
+      });
+    return () => controller.abort();
+  }, []);
 
   useEffect(() => {
-    if (!values.countryId) {
-      setStates([]);
+    if (!values.countryId || values.countryId === OTHER) {
       return;
     }
     const controller = new AbortController();
@@ -93,8 +135,7 @@ export function DevoteeForm({ countries, defaultCountryId, devotee, onSaved, onC
   }, [values.countryId]);
 
   useEffect(() => {
-    if (!values.stateId) {
-      setCities([]);
+    if (!values.stateId || values.stateId === OTHER) {
       return;
     }
     const controller = new AbortController();
@@ -132,6 +173,191 @@ export function DevoteeForm({ countries, defaultCountryId, devotee, onSaved, onC
     setDuplicateWarning('');
   }
 
+  async function createLookup(
+    kind: 'country' | 'state' | 'city',
+    body: Record<string, string | number>,
+  ): Promise<CreateLookupResponse & { ok: boolean; status: number }> {
+    const path =
+      kind === 'country' ? '/api/lookup/countries'
+        : kind === 'state' ? '/api/lookup/states'
+          : '/api/lookup/cities';
+    const response = await fetch(path, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const result = (await response.json().catch(() => ({}))) as CreateLookupResponse;
+    return { ...result, ok: response.ok, status: response.status };
+  }
+
+  async function addCustomCountry() {
+    setErrors((current) => ({ ...current, countryId: '', customCountry: '' }));
+    setServerError('');
+    const name = customCountry.trim();
+    if (name.length < 2) {
+      setErrors((current) => ({ ...current, customCountry: 'Enter a country name (at least 2 characters).' }));
+      return;
+    }
+    setAddingCountry(true);
+    try {
+      const result = await createLookup('country', { name });
+      if (!result.ok || !result.id || !result.name) {
+        if (result.status === 409 && result.existingId) {
+          const existing = countryOptions.find((item) => item.id === result.existingId);
+          setValues((current) => ({
+            ...current,
+            countryId: String(result.existingId),
+            stateId: '',
+            cityId: '',
+          }));
+          setCustomCountry('');
+          setErrors((current) => ({
+            ...current,
+            customCountry: result.error || 'This country already exists. It has been selected for you.',
+          }));
+          if (!existing && result.name) {
+            setCountryOptions((current) =>
+              current.some((item) => item.id === result.existingId)
+                ? current
+                : [...current, { id: result.existingId!, name: result.name!, iso2: result.iso2 }].sort((a, b) =>
+                    a.name.localeCompare(b.name),
+                  ),
+            );
+          }
+          return;
+        }
+        setErrors((current) => ({ ...current, customCountry: result.error || 'Could not add country.' }));
+        return;
+      }
+      const option: LookupOption = { id: result.id, name: result.name, iso2: result.iso2 };
+      setCountryOptions((current) =>
+        current.some((item) => item.id === option.id)
+          ? current
+          : [...current, option].sort((a, b) => a.name.localeCompare(b.name)),
+      );
+      setValues((current) => ({
+        ...current,
+        countryId: String(result.id),
+        stateId: '',
+        cityId: '',
+        postalCode: result.iso2?.toUpperCase() === 'IN' ? current.postalCode : '',
+      }));
+      setCustomCountry('');
+      setStates([]);
+      setCities([]);
+      setSuccess(`Added country “${result.name}”. You can now pick or add a state.`);
+    } catch {
+      setErrors((current) => ({ ...current, customCountry: 'Could not add country. Check internet and try again.' }));
+    } finally {
+      setAddingCountry(false);
+    }
+  }
+
+  async function addCustomState() {
+    setErrors((current) => ({ ...current, stateId: '', customState: '' }));
+    setServerError('');
+    if (!values.countryId || values.countryId === OTHER) {
+      setErrors((current) => ({ ...current, customState: 'Select a country first.' }));
+      return;
+    }
+    const name = customState.trim();
+    if (name.length < 2) {
+      setErrors((current) => ({ ...current, customState: 'Enter a state name (at least 2 characters).' }));
+      return;
+    }
+    setAddingState(true);
+    try {
+      const result = await createLookup('state', { countryId: Number(values.countryId), name });
+      if (!result.ok || !result.id || !result.name) {
+        if (result.status === 409 && result.existingId) {
+          setValues((current) => ({ ...current, stateId: String(result.existingId), cityId: '' }));
+          setCustomState('');
+          setCities([]);
+          setErrors((current) => ({
+            ...current,
+            customState: result.error || 'This state already exists. It has been selected for you.',
+          }));
+          setStates((current) =>
+            current.some((item) => item.id === result.existingId)
+              ? current
+              : [...current, { id: result.existingId!, name: result.name || name }].sort((a, b) =>
+                  a.name.localeCompare(b.name),
+                ),
+          );
+          return;
+        }
+        setErrors((current) => ({ ...current, customState: result.error || 'Could not add state.' }));
+        return;
+      }
+      const option: LookupOption = { id: result.id, name: result.name };
+      setStates((current) =>
+        current.some((item) => item.id === option.id)
+          ? current
+          : [...current, option].sort((a, b) => a.name.localeCompare(b.name)),
+      );
+      setValues((current) => ({ ...current, stateId: String(result.id), cityId: '' }));
+      setCustomState('');
+      setCities([]);
+      setSuccess(`Added state “${result.name}”. You can now pick or add a city.`);
+    } catch {
+      setErrors((current) => ({ ...current, customState: 'Could not add state. Check internet and try again.' }));
+    } finally {
+      setAddingState(false);
+    }
+  }
+
+  async function addCustomCity() {
+    setErrors((current) => ({ ...current, cityId: '', customCity: '' }));
+    setServerError('');
+    if (!values.stateId || values.stateId === OTHER) {
+      setErrors((current) => ({ ...current, customCity: 'Select a state first.' }));
+      return;
+    }
+    const name = customCity.trim();
+    if (name.length < 2) {
+      setErrors((current) => ({ ...current, customCity: 'Enter a city name (at least 2 characters).' }));
+      return;
+    }
+    setAddingCity(true);
+    try {
+      const result = await createLookup('city', { stateId: Number(values.stateId), name });
+      if (!result.ok || !result.id || !result.name) {
+        if (result.status === 409 && result.existingId) {
+          setValues((current) => ({ ...current, cityId: String(result.existingId) }));
+          setCustomCity('');
+          setErrors((current) => ({
+            ...current,
+            customCity: result.error || 'This city already exists. It has been selected for you.',
+          }));
+          setCities((current) =>
+            current.some((item) => item.id === result.existingId)
+              ? current
+              : [...current, { id: result.existingId!, name: result.name || name }].sort((a, b) =>
+                  a.name.localeCompare(b.name),
+                ),
+          );
+          return;
+        }
+        setErrors((current) => ({ ...current, customCity: result.error || 'Could not add city.' }));
+        return;
+      }
+      const option: LookupOption = { id: result.id, name: result.name };
+      setCities((current) =>
+        current.some((item) => item.id === option.id)
+          ? current
+          : [...current, option].sort((a, b) => a.name.localeCompare(b.name)),
+      );
+      setValues((current) => ({ ...current, cityId: String(result.id) }));
+      setCustomCity('');
+      setSuccess(`Added city “${result.name}”.`);
+    } catch {
+      setErrors((current) => ({ ...current, customCity: 'Could not add city. Check internet and try again.' }));
+    } finally {
+      setAddingCity(false);
+    }
+  }
+
   async function checkDuplicate() {
     if (!countryIso2) return;
     const check = normalizeAndCheckMobile(values.mobile, countryIso2);
@@ -153,10 +379,24 @@ export function DevoteeForm({ countries, defaultCountryId, devotee, onSaved, onC
     event.preventDefault();
     setServerError('');
     setSuccess('');
-    const parsed = devoteeFormSchema.safeParse(values);
     const nextErrors: Record<string, string> = {};
+
+    if (countryIsOther) {
+      nextErrors.countryId = 'Add the new country with the Add button, or pick an existing one.';
+    }
+    if (stateIsOther) {
+      nextErrors.stateId = 'Add the new state with the Add button, or pick an existing one.';
+    }
+    if (cityIsOther) {
+      nextErrors.cityId = 'Add the new city with the Add button, or pick an existing one.';
+    }
+
+    const parsed = devoteeFormSchema.safeParse(values);
     if (!parsed.success) {
-      parsed.error.errors.forEach((error) => { const field = String(error.path[0]); if (!nextErrors[field]) nextErrors[field] = error.message; });
+      parsed.error.errors.forEach((error) => {
+        const field = String(error.path[0]);
+        if (!nextErrors[field]) nextErrors[field] = error.message;
+      });
     }
     if (isIndia && !/^\d{6}$/.test(values.postalCode.replace(/\D/g, ''))) {
       nextErrors.postalCode = 'Enter a 6-digit PIN code.';
@@ -189,6 +429,9 @@ export function DevoteeForm({ countries, defaultCountryId, devotee, onSaved, onC
         onSaved();
       } else {
         setValues((current) => ({ ...blank(Number(current.countryId)), stateId: current.stateId }));
+        setCustomCountry('');
+        setCustomState('');
+        setCustomCity('');
         setSuccess('Saved. You can add another person.');
         onSaved();
         window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -201,8 +444,16 @@ export function DevoteeForm({ countries, defaultCountryId, devotee, onSaved, onC
   }
 
   const firstError = Object.keys(errors).find((field) => errors[field]);
-  const fieldClass = (field: keyof FormValues) => `mt-2 min-h-12 w-full rounded-lg border bg-white px-3.5 text-base outline-none transition focus:ring-4 ${errors[field] ? 'border-red-400 focus:border-red-500 focus:ring-red-100' : 'border-border focus:border-accent focus:ring-amber-100'}`;
-  const errorFor = (field: keyof FormValues) => errors[field] ? <p className="mt-1.5 text-sm text-red-700">{errors[field]}</p> : null;
+  const fieldClass = (field: keyof FormValues | 'customCountry' | 'customState' | 'customCity') =>
+    `mt-2 min-h-12 w-full rounded-lg border bg-white px-3.5 text-base outline-none transition focus:ring-4 ${
+      errors[field] ? 'border-red-400 focus:border-red-500 focus:ring-red-100' : 'border-border focus:border-accent focus:ring-amber-100'
+    }`;
+  const errorFor = (field: string) => errors[field] ? <p className="mt-1.5 text-sm text-red-700">{errors[field]}</p> : null;
+
+  const otherInputClass = (field: 'customCountry' | 'customState' | 'customCity') =>
+    `min-h-12 flex-1 rounded-lg border bg-white px-3.5 text-base outline-none transition focus:ring-4 ${
+      errors[field] ? 'border-red-400 focus:border-red-500 focus:ring-red-100' : 'border-border focus:border-accent focus:ring-amber-100'
+    }`;
 
   return (
     <form onSubmit={submit} noValidate>
@@ -227,45 +478,203 @@ export function DevoteeForm({ countries, defaultCountryId, devotee, onSaved, onC
           <textarea value={values.address} onChange={(event) => update('address', event.target.value)} rows={3} autoComplete="street-address" className={`${fieldClass('address')} py-3`} />
           {errorFor('address')}
         </label>
-        <label className="block font-semibold">Country <span className="text-red-600">*</span>
-          <select value={values.countryId} onChange={(event) => {
-            const next = event.target.value;
-            setValues((current) => ({ ...current, countryId: next, stateId: '', cityId: '', postalCode: countries.find((item) => String(item.id) === next)?.iso2 === 'IN' ? current.postalCode : '' }));
-            setStates([]); setCities([]); setErrors({}); setSuccess('');
-          }} className={fieldClass('countryId')}>
-            <option value="">Choose country</option>
-            {countries.map((country) => <option key={country.id} value={country.id}>{country.name}</option>)}
-          </select>
+        <div className="block font-semibold">
+          <label className="block">
+            Country <span className="text-red-600">*</span>
+            <select
+              value={values.countryId}
+              onChange={(event) => {
+                const next = event.target.value;
+                setValues((current) => ({
+                  ...current,
+                  countryId: next,
+                  stateId: '',
+                  cityId: '',
+                  postalCode:
+                    next !== OTHER && countryOptions.find((item) => String(item.id) === next)?.iso2 === 'IN'
+                      ? current.postalCode
+                      : '',
+                }));
+                setStates([]);
+                setCities([]);
+                setCustomCountry('');
+                setCustomState('');
+                setCustomCity('');
+                setErrors({});
+                setSuccess('');
+              }}
+              className={fieldClass('countryId')}
+            >
+              <option value="">Choose country</option>
+              {countryOptions.map((country) => (
+                <option key={country.id} value={country.id}>{country.name}</option>
+              ))}
+              <option value={OTHER}>Others</option>
+            </select>
+          </label>
           {errorFor('countryId')}
-        </label>
-        <LookupCombobox
-          label="State"
-          required
-          value={values.stateId}
-          options={states}
-          selectedLabel={devotee?.stateName}
-          disabled={!values.countryId}
-          loading={loadingStates}
-          placeholder={values.countryId ? 'Type state name' : 'Select country first'}
-          onChange={(next) => {
-            setValues((current) => ({ ...current, stateId: next, cityId: '' }));
-            setCities([]);
-            setErrors((current) => ({ ...current, stateId: '', cityId: '' }));
-          }}
-          error={errors.stateId}
-        />
-        <LookupCombobox
-          label="City"
-          required
-          value={values.cityId}
-          options={cities}
-          selectedLabel={devotee?.cityName}
-          disabled={!values.stateId}
-          loading={loadingCities}
-          placeholder={values.stateId ? 'Type city name' : 'Select state first'}
-          onChange={(next) => update('cityId', next)}
-          error={errors.cityId}
-        />
+          {countryIsOther ? (
+            <div className="mt-3">
+              <span className="block text-sm font-semibold text-foreground">New country name</span>
+              <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+                <input
+                  value={customCountry}
+                  onChange={(event) => {
+                    setCustomCountry(event.target.value);
+                    setErrors((current) => ({ ...current, customCountry: '', countryId: '' }));
+                    setSuccess('');
+                  }}
+                  placeholder="e.g. Singapore"
+                  autoComplete="off"
+                  className={otherInputClass('customCountry')}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                      event.preventDefault();
+                      void addCustomCountry();
+                    }
+                  }}
+                />
+                <button
+                  type="button"
+                  disabled={addingCountry}
+                  onClick={() => void addCustomCountry()}
+                  className="h-12 shrink-0 rounded-lg bg-accent px-4 font-semibold text-white shadow-sm transition hover:bg-accent-hover focus:outline-none focus:ring-4 focus:ring-amber-200 disabled:cursor-not-allowed disabled:opacity-55"
+                >
+                  {addingCountry ? 'Adding…' : 'Add country'}
+                </button>
+              </div>
+              <span className="mt-1.5 block text-sm font-normal text-muted">
+                This saves the country so it appears in the list next time.
+              </span>
+              {errorFor('customCountry')}
+            </div>
+          ) : null}
+        </div>
+        <div>
+          <LookupCombobox
+            label="State"
+            required
+            value={values.stateId}
+            options={states}
+            selectedLabel={devotee?.stateName}
+            disabled={!values.countryId || countryIsOther}
+            loading={loadingStates}
+            placeholder={
+              countryIsOther
+                ? 'Add the country first'
+                : values.countryId
+                  ? 'Type state name'
+                  : 'Select country first'
+            }
+            allowOther={Boolean(values.countryId) && !countryIsOther}
+            onChange={(next) => {
+              setValues((current) => ({ ...current, stateId: next, cityId: '' }));
+              setCities([]);
+              setCustomState('');
+              setCustomCity('');
+              setErrors((current) => ({ ...current, stateId: '', cityId: '', customState: '', customCity: '' }));
+              setSuccess('');
+            }}
+            error={errors.stateId}
+          />
+          {stateIsOther ? (
+            <div className="mt-3">
+              <span className="block text-sm font-semibold text-foreground">New state name</span>
+              <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+                <input
+                  value={customState}
+                  onChange={(event) => {
+                    setCustomState(event.target.value);
+                    setErrors((current) => ({ ...current, customState: '', stateId: '' }));
+                    setSuccess('');
+                  }}
+                  placeholder="e.g. California"
+                  autoComplete="off"
+                  className={otherInputClass('customState')}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                      event.preventDefault();
+                      void addCustomState();
+                    }
+                  }}
+                />
+                <button
+                  type="button"
+                  disabled={addingState}
+                  onClick={() => void addCustomState()}
+                  className="h-12 shrink-0 rounded-lg bg-accent px-4 font-semibold text-white shadow-sm transition hover:bg-accent-hover focus:outline-none focus:ring-4 focus:ring-amber-200 disabled:cursor-not-allowed disabled:opacity-55"
+                >
+                  {addingState ? 'Adding…' : 'Add state'}
+                </button>
+              </div>
+              <span className="mt-1.5 block text-sm font-normal text-muted">
+                Saved under the selected country. It will appear in the state list next time.
+              </span>
+              {errorFor('customState')}
+            </div>
+          ) : null}
+        </div>
+        <div>
+          <LookupCombobox
+            label="City"
+            required
+            value={values.cityId}
+            options={cities}
+            selectedLabel={devotee?.cityName}
+            disabled={!values.stateId || stateIsOther}
+            loading={loadingCities}
+            placeholder={
+              stateIsOther
+                ? 'Add the state first'
+                : values.stateId
+                  ? 'Type city name'
+                  : 'Select state first'
+            }
+            allowOther={Boolean(values.stateId) && !stateIsOther}
+            onChange={(next) => {
+              update('cityId', next);
+              setCustomCity('');
+              setErrors((current) => ({ ...current, customCity: '' }));
+            }}
+            error={errors.cityId}
+          />
+          {cityIsOther ? (
+            <div className="mt-3">
+              <span className="block text-sm font-semibold text-foreground">New city name</span>
+              <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+                <input
+                  value={customCity}
+                  onChange={(event) => {
+                    setCustomCity(event.target.value);
+                    setErrors((current) => ({ ...current, customCity: '', cityId: '' }));
+                    setSuccess('');
+                  }}
+                  placeholder="e.g. Fremont"
+                  autoComplete="off"
+                  className={otherInputClass('customCity')}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                      event.preventDefault();
+                      void addCustomCity();
+                    }
+                  }}
+                />
+                <button
+                  type="button"
+                  disabled={addingCity}
+                  onClick={() => void addCustomCity()}
+                  className="h-12 shrink-0 rounded-lg bg-accent px-4 font-semibold text-white shadow-sm transition hover:bg-accent-hover focus:outline-none focus:ring-4 focus:ring-amber-200 disabled:cursor-not-allowed disabled:opacity-55"
+                >
+                  {addingCity ? 'Adding…' : 'Add city'}
+                </button>
+              </div>
+              <span className="mt-1.5 block text-sm font-normal text-muted">
+                Saved under the selected state. It will appear in the city list next time.
+              </span>
+              {errorFor('customCity')}
+            </div>
+          ) : null}
+        </div>
         {isIndia && <label className="block font-semibold">PIN code <span className="text-red-600">*</span>
           <input value={values.postalCode} onChange={(event) => update('postalCode', event.target.value)} inputMode="numeric" autoComplete="postal-code" maxLength={6} className={fieldClass('postalCode')} />
           {errorFor('postalCode')}

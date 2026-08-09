@@ -53,6 +53,20 @@ export const duplicateCheckSchema = z.object({
   excludeId: z.number().int().positive().optional(),
 });
 
+export const createCountrySchema = z.object({
+  name: z.string().trim().min(2, 'Enter a country name (at least 2 characters).').max(100, 'Country name is too long (100 characters max).'),
+});
+
+export const createStateSchema = z.object({
+  countryId: positiveId,
+  name: z.string().trim().min(2, 'Enter a state name (at least 2 characters).').max(100, 'State name is too long (100 characters max).'),
+});
+
+export const createCitySchema = z.object({
+  stateId: positiveId,
+  name: z.string().trim().min(2, 'Enter a city name (at least 2 characters).').max(100, 'City name is too long (100 characters max).'),
+});
+
 export type DevoteeFormInput = z.input<typeof devoteeFormSchema>;
 export type DevoteeFormData = z.output<typeof devoteeFormSchema>;
 export type DevoteeQuery = z.infer<typeof devoteeQuerySchema>;
