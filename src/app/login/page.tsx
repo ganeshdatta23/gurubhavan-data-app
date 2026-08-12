@@ -70,7 +70,7 @@ export default async function LoginPage({ searchParams }: Props) {
               type="submit"
               className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-accent px-5 text-base font-semibold text-white shadow-sm transition hover:bg-accent-hover focus:outline-none focus:ring-4 focus:ring-amber-200"
             >
-              Sign in
+              Log in
             </button>
           </form>
         </section>

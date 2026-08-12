@@ -4,6 +4,7 @@ import { requireAdmin } from '@/lib/auth';
 import { createCitySchema } from '@/lib/validators';
 
 export async function GET(request: NextRequest) {
+  await requireAdmin();
   const stateId = Number(request.nextUrl.searchParams.get('stateId'));
   if (!Number.isInteger(stateId) || stateId < 1) {
     return NextResponse.json({ error: 'stateId is required.' }, { status: 400 });

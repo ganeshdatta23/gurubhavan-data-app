@@ -4,6 +4,7 @@ import { requireAdmin } from '@/lib/auth';
 import { createCountrySchema } from '@/lib/validators';
 
 export async function GET() {
+  await requireAdmin();
   return NextResponse.json(await getCountries(), {
     headers: { 'Cache-Control': 'no-store' },
   });
