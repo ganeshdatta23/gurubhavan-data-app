@@ -11,7 +11,7 @@ import type { DevoteeListItem, LookupOption, MessageSendResult } from '@/types';
 type Tab = 'add' | 'people';
 type Pagination = { page: number; pageSize: number; total: number; totalPages: number };
 const emptyPagination: Pagination = { page: 1, pageSize: 50, total: 0, totalPages: 1 };
-const pageSizes = [50, 100, 200];
+const pageSizes = [50, 100, 200, 500];
 /** People per request to /api/messages/send; each request streams one result per person. */
 const sendBatchSize = 25;
 const messageMaxLength = 3000;
