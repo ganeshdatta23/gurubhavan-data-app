@@ -3,6 +3,9 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { LookupOption } from '@/types';
 
+/** Sentinel id used when the user picks "Others" to enter a new value. */
+export const LOOKUP_OTHER_ID = -1;
+
 type Props = {
   label: string;
   value: string;
@@ -13,6 +16,9 @@ type Props = {
   placeholder?: string;
   allowEmpty?: boolean;
   emptyLabel?: string;
+  /** Append a fixed "Others" option so staff can add a missing value. */
+  allowOther?: boolean;
+  otherLabel?: string;
   required?: boolean;
   error?: string;
   className?: string;
@@ -31,6 +37,8 @@ export function LookupCombobox({
   placeholder = 'Type to search',
   allowEmpty = false,
   emptyLabel = 'All',
+  allowOther = false,
+  otherLabel = 'Others',
   required = false,
   error,
   className = '',
@@ -45,6 +53,8 @@ export function LookupCombobox({
   const [query, setQuery] = useState('');
   const [activeIndex, setActiveIndex] = useState(0);
 
+  const isOther = value === String(LOOKUP_OTHER_ID);
+
   const selected = useMemo(
     () => options.find((option) => String(option.id) === value),
     [options, value],
@@ -52,19 +62,25 @@ export function LookupCombobox({
 
   useEffect(() => {
     if (open) return;
+    if (isOther) {
+      setQuery(otherLabel);
+      return;
+    }
     setQuery(selected?.name ?? (value && selectedLabel ? selectedLabel : ''));
-  }, [open, selected, selectedLabel, value]);
+  }, [open, selected, selectedLabel, value, isOther, otherLabel]);
 
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
-    if (!needle) return options;
+    if (!needle || isOther) return options;
     return options.filter((option) => option.name.toLowerCase().includes(needle));
-  }, [options, query]);
+  }, [options, query, isOther]);
 
   const items = useMemo(() => {
-    if (!allowEmpty) return filtered;
-    return [{ id: 0, name: emptyLabel }, ...filtered];
-  }, [allowEmpty, emptyLabel, filtered]);
+    const list: Array<LookupOption | { id: number; name: string }> = [...filtered];
+    if (allowEmpty) list.unshift({ id: 0, name: emptyLabel });
+    if (allowOther) list.push({ id: LOOKUP_OTHER_ID, name: otherLabel });
+    return list;
+  }, [allowEmpty, allowOther, emptyLabel, filtered, otherLabel]);
 
   useEffect(() => {
     setActiveIndex(0);
@@ -82,6 +98,9 @@ export function LookupCombobox({
     if (allowEmpty && option.id === 0) {
       onChange('');
       setQuery('');
+    } else if (option.id === LOOKUP_OTHER_ID) {
+      onChange(String(LOOKUP_OTHER_ID));
+      setQuery(otherLabel);
     } else {
       onChange(String(option.id));
       setQuery(option.name);
@@ -92,6 +111,10 @@ export function LookupCombobox({
   function onBlur() {
     window.setTimeout(() => {
       if (!open) {
+        if (isOther) {
+          setQuery(otherLabel);
+          return;
+        }
         setQuery(selected?.name ?? (value && selectedLabel ? selectedLabel : ''));
       }
     }, 0);
@@ -106,8 +129,10 @@ export function LookupCombobox({
     : disabled
       ? placeholder
       : options.length
-        ? `${options.length.toLocaleString()} options`
-        : 'No options found';
+        ? `${options.length.toLocaleString()} options${allowOther ? ' · pick Others if missing' : ''}`
+        : allowOther
+          ? 'No options yet — choose Others to add one'
+          : 'No options found';
 
   return (
     <label htmlFor={inputId} className={`block font-semibold ${className}`}>
@@ -159,7 +184,11 @@ export function LookupCombobox({
             } else if (event.key === 'Escape') {
               event.preventDefault();
               setOpen(false);
-              setQuery(selected?.name ?? (value && selectedLabel ? selectedLabel : ''));
+              if (isOther) {
+                setQuery(otherLabel);
+              } else {
+                setQuery(selected?.name ?? (value && selectedLabel ? selectedLabel : ''));
+              }
             }
           }}
           className={fieldClass}
@@ -171,7 +200,7 @@ export function LookupCombobox({
             className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-lg border border-border bg-white py-1 shadow-lg"
           >
             {items.map((option, index) => (
-              <li key={option.id || 'empty'} role="presentation">
+              <li key={option.id === LOOKUP_OTHER_ID ? 'other' : option.id || 'empty'} role="presentation">
                 <button
                   type="button"
                   id={`${listId}-option-${option.id}`}
@@ -180,7 +209,13 @@ export function LookupCombobox({
                   onMouseDown={(event) => event.preventDefault()}
                   onClick={() => choose(option)}
                   className={`flex w-full px-3.5 py-2.5 text-left text-base ${
-                    index === activeIndex ? 'bg-amber-50 text-foreground' : 'text-foreground hover:bg-gray-50'
+                    option.id === LOOKUP_OTHER_ID
+                      ? index === activeIndex
+                        ? 'bg-amber-50 font-semibold text-accent'
+                        : 'font-semibold text-accent hover:bg-amber-50'
+                      : index === activeIndex
+                        ? 'bg-amber-50 text-foreground'
+                        : 'text-foreground hover:bg-gray-50'
                   }`}
                 >
                   {option.name}

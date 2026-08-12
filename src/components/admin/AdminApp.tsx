@@ -16,8 +16,9 @@ const pageSizes = [50, 100, 200];
 const sendBatchSize = 25;
 const messageMaxLength = 3000;
 
-export function AdminApp({ userName, countries, initialTab }: { userName: string; countries: LookupOption[]; initialTab: Tab }) {
+export function AdminApp({ userName, countries: initialCountries, initialTab }: { userName: string; countries: LookupOption[]; initialTab: Tab }) {
   const router = useRouter();
+  const [countries, setCountries] = useState(initialCountries);
   const indiaId = countries.find((country) => country.iso2?.toUpperCase() === 'IN')?.id;
   const [tab, setTab] = useState<Tab>(initialTab);
   const [rows, setRows] = useState<DevoteeListItem[]>([]);
@@ -56,6 +57,27 @@ export function AdminApp({ userName, countries, initialTab }: { userName: string
   const [sendFailures, setSendFailures] = useState<MessageSendResult[]>([]);
   const stopSending = useRef(false);
   const editDialogRef = useDialogFocus(Boolean(editing), () => setEditing(null));
+
+  // Refresh countries when people list reloads (e.g. after adding a custom location).
+  useEffect(() => {
+    const controller = new AbortController();
+    void fetch('/api/lookup/countries', {
+      credentials: 'same-origin',
+      cache: 'no-store',
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        if (!response.ok) throw new Error('countries');
+        return response.json() as Promise<LookupOption[]>;
+      })
+      .then((rows) => {
+        if (!controller.signal.aborted && Array.isArray(rows) && rows.length) setCountries(rows);
+      })
+      .catch(() => {
+        // Keep current list if refresh fails.
+      });
+    return () => controller.abort();
+  }, [reloadKey]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => { setSearch(query.trim()); setPage(1); clearSelection(); }, 300);
