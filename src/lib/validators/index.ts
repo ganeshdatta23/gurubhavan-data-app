@@ -37,7 +37,7 @@ export const devoteeQuerySchema = z.object({
   stateId: z.coerce.number().int().positive().optional(),
   cityId: z.coerce.number().int().positive().optional(),
   page: z.coerce.number().int().min(1).default(1),
-  pageSize: z.coerce.number().int().refine((value) => [50, 100, 200].includes(value), 'Choose 50, 100, or 200.').default(50),
+  pageSize: z.coerce.number().int().refine((value) => [50, 100, 200, 500].includes(value), 'Choose 50, 100, 200, or 500.').default(50),
 });
 
 export const sendMessagesSchema = z.object({
