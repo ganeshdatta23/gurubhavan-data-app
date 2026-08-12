@@ -4,13 +4,13 @@
 
 @layer base {
   :root {
-    --background: 0 0% 98%;
+    --background: 40 20% 97%;
     --foreground: 240 10% 3.9%;
     --card: 0 0% 100%;
     --card-foreground: 240 10% 3.9%;
     --popover: 0 0% 100%;
     --popover-foreground: 240 10% 3.9%;
-    --primary: 38 92% 50%;
+    --primary: 32 81% 35%;
     --primary-foreground: 0 0% 100%;
     --secondary: 240 4.8% 95.9%;
     --secondary-foreground: 240 5.9% 10%;
@@ -22,8 +22,8 @@
     --destructive-foreground: 0 0% 98%;
     --border: 240 5.9% 90%;
     --input: 240 5.9% 90%;
-    --ring: 38 92% 50%;
-    --radius: 0.5rem;
+    --ring: 32 81% 35%;
+    --radius: 0.625rem;
   }
 
   * {
@@ -32,6 +32,16 @@
 
   body {
     @apply bg-bg font-sans text-base text-foreground antialiased;
+  }
+
+  :focus-visible {
+    outline: 3px solid #f59e0b;
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background: #fef3c7;
+    color: #451a03;
   }
 
   button,
@@ -45,5 +55,16 @@
   input[type='tel'],
   [data-phone] {
     @apply font-mono;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
   }
 }
