@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createCity, getCitiesByState } from '@/db/queries/lookups';
 import { requireAdmin } from '@/lib/auth';
 import { createCitySchema } from '@/lib/validators';
+import { isSameOriginMutation } from '@/lib/mutation-origin';
 
 export async function GET(request: NextRequest) {
   await requireAdmin();
@@ -15,6 +16,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  if (!isSameOriginMutation(request)) return NextResponse.json({ error: 'Invalid request origin.' }, { status: 403 });
   await requireAdmin();
 
   const parsed = createCitySchema.safeParse(await request.json().catch(() => ({})));

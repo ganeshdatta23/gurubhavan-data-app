@@ -40,6 +40,13 @@ export const devoteeQuerySchema = z.object({
   pageSize: z.coerce.number().int().refine((value) => [10, 20, 50].includes(value), 'Choose 10, 20, or 50.').default(20),
 });
 
+export const analyticsQuerySchema = z.object({
+  countryId: z.coerce.number().int().positive().optional(),
+  stateId: z.coerce.number().int().positive().optional(),
+  cityId: z.coerce.number().int().positive().optional(),
+  days: z.coerce.number().int().refine((value) => [7, 30, 90, 365].includes(value), 'Choose a valid date range.').default(30),
+});
+
 export const sendMessagesSchema = z.object({
   ids: z.array(z.coerce.number().int().positive())
     .min(1, 'Select at least one person.')
@@ -70,3 +77,4 @@ export const createCitySchema = z.object({
 export type DevoteeFormInput = z.input<typeof devoteeFormSchema>;
 export type DevoteeFormData = z.output<typeof devoteeFormSchema>;
 export type DevoteeQuery = z.infer<typeof devoteeQuerySchema>;
+export type AnalyticsQuery = z.infer<typeof analyticsQuerySchema>;

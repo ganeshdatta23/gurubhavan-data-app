@@ -18,7 +18,7 @@ Build on the existing Next.js codebase under `src/` where practical. Prefer **si
 | Entity | Devotee |
 | Org / source group | **Removed** |
 | WhatsApp / comms fields | **Removed** |
-| Primary UI | **Two tabs only** — no sidebar app, no dashboard page |
+| Primary UI | **Three tabs** — Overview, Add person, and People; no sidebar app |
 | Default list sort | **City A–Z**, then name A–Z |
 | Soft delete | **Yes** |
 | Design priority | **Mobile-first**, then desktop |
@@ -123,7 +123,7 @@ If a volunteer cannot add a person in under a minute on their phone without trai
 
 1. **Mobile-first layout** — single column by default; enhance to 2 columns only from `md`/`lg` up  
 2. **One job per tab** — Tab 1 = add people; Tab 2 = find / edit / import / download  
-3. **No sidebar, no dashboard, no broadcasts nav**  
+3. **No sidebar, no broadcasts nav**
 4. **One shared form** for create + edit — no multi-step wizard, no draft autosave  
 5. **Plain language** — “Save devotee”, “Search people”, “Delete”, “Download Excel” (not “Submit entity”, “Query”, “Archive”, “Export payload”)  
 6. **Native controls first** — large inputs + native selects; type-ahead only if city list is huge  
@@ -147,7 +147,7 @@ If a volunteer cannot add a person in under a minute on their phone without trai
 
 **Do use:** consistent vertical rhythm, sticky save bar on mobile forms if needed, skeleton/loading text, empty states with a short next step.
 
-**Do not use:** dark mode, heavy glassmorphism, charts, KPI dashboards, hamburger menus, icon-only nav, tiny table text, hover-only actions (breaks mobile).
+**Do not use:** dark mode, heavy glassmorphism, decorative charts, hamburger menus, icon-only nav, tiny table text, hover-only actions (breaks mobile).
 
 ### 3.3 Mobile-first breakpoints
 
@@ -263,7 +263,7 @@ Do **not** ship a desktop-only table that is unusable on phones (horizontal micr
 
 | Current | Action |
 |---|---|
-| Sidebar: Dashboard / Registry / Import / Broadcasts | **Remove** → two tabs |
+| Sidebar: Dashboard / Registry / Import / Broadcasts | **Remove** → Overview, Add person, and People tabs |
 | Dashboard welcome cards | **Remove** |
 | Multi-step wizard + draft save | **Replace** with one flat form |
 | Duplicate registration modal | **Merge** into shared form |
@@ -519,7 +519,7 @@ We checked your file:
 | Edit | sheet (mobile) / modal (desktop) | Same form |
 | Import | sheet / modal on People | Upload + plain-language preview |
 
-**No** dashboard, **no** broadcasts shell, **no** separate import page as the main path.
+**No** broadcasts shell, **no** separate import page as the main path. Overview is the default admin home and uses only real registry data.
 
 ### Locked UX defaults
 
@@ -531,7 +531,7 @@ We checked your file:
 | List on phone | **Cards** (required) |
 | List on desktop | Table OK |
 | Deleted rows | Hidden in v1 |
-| KPIs / dashboard | None |
+| KPIs / dashboard | Overview uses real aggregated registry data |
 | Default country | **India** |
 | District in UI | No |
 | Multi-select filters | No |
@@ -659,7 +659,7 @@ admin / admin@1942
 - WhatsApp consent + broadcast UI in this shell  
 - Member OTP / public registration  
 - Multi-step registration wizard  
-- Dashboard KPIs / charts  
+- Campaign dashboards / delivery charts
 - Dark mode  
 - Campaign-style multi-select rows  
 - Hard delete as default  

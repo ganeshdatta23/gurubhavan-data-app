@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createSession, destroySession, getSession, loginUser } from '@/lib/auth';
 import { checkRateLimit, clearRateLimit } from '@/lib/rate-limit';
 import { loginSchema } from '@/lib/validators';
+import { isSameOriginMutation } from '@/lib/mutation-origin';
 
 type Context = { params: Promise<{ auth: string[] }> };
 
@@ -15,7 +16,9 @@ function clientIp(request: NextRequest) {
 
 export async function POST(request: NextRequest, { params }: Context) {
   const action = (await params).auth[0];
+  if (action === 'login' && !isSameOriginMutation(request)) return NextResponse.json({ error: 'Invalid request origin.' }, { status: 403 });
   if (action === 'logout') {
+    if (!isSameOriginMutation(request)) return NextResponse.json({ error: 'Invalid request origin.' }, { status: 403 });
     await destroySession();
     return NextResponse.json({ ok: true });
   }

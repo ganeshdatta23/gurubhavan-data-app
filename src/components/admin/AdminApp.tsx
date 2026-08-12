@@ -1,15 +1,16 @@
 'use client';
 
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
-import { ChevronLeft, ChevronRight, Download, FileUp, LogOut, Pencil, Search, Trash2, UserPlus, UsersRound, X } from 'lucide-react';
+import { BarChart3, ChevronLeft, ChevronRight, Download, FileUp, LogOut, Pencil, Search, Trash2, UserPlus, UsersRound, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { DevoteeForm } from '@/components/devotees/DevoteeForm';
 import { ImportDialog } from '@/components/admin/ImportDialog';
+import { Dashboard } from '@/components/admin/Dashboard';
 import { LookupCombobox } from '@/components/shared/LookupCombobox';
 import { formatMobileDisplay, telHref } from '@/lib/phone';
 import type { DevoteeListItem, LookupOption } from '@/types';
 
-type Tab = 'add' | 'people';
+export type Tab = 'overview' | 'add' | 'people';
 type Pagination = { page: number; pageSize: number; total: number; totalPages: number };
 const emptyPagination: Pagination = { page: 1, pageSize: 20, total: 0, totalPages: 1 };
 const pageSizes = [10, 20, 50];
@@ -171,7 +172,17 @@ export function AdminApp({ userName, countries: initialCountries, initialTab }: 
   function selectTab(next: Tab) {
     setTab(next);
     setNotice('');
-    router.replace(next === 'people' ? '/admin?tab=people' : '/admin', { scroll: false });
+    router.replace(next === 'people' ? '/admin?tab=people' : next === 'add' ? '/admin?tab=add' : '/admin', { scroll: false });
+  }
+
+  function openPeopleFromDashboard(filters: { countryId?: string; stateId?: string; cityId?: string }) {
+    setQuery('');
+    setSearch('');
+    setCountryId(filters.countryId ?? '');
+    setStateId(filters.stateId ?? '');
+    setCityId(filters.cityId ?? '');
+    setPage(1);
+    selectTab('people');
   }
 
   function clearFilters() {
@@ -244,14 +255,15 @@ export function AdminApp({ userName, countries: initialCountries, initialTab }: 
       </header>
 
        <nav aria-label="Main sections" className="border-b border-border bg-white" role="tablist">
-        <div className="mx-auto grid max-w-[1120px] grid-cols-2 gap-2 px-4 py-3 sm:px-6 md:flex">
-           <TabButton active={tab === 'add'} icon={<UserPlus size={19} />} onClick={() => selectTab('add')}>Add person</TabButton>
+         <div className="mx-auto grid max-w-[1120px] grid-cols-3 gap-2 px-4 py-3 sm:px-6 md:flex">
+            <TabButton active={tab === 'overview'} icon={<BarChart3 size={19} />} onClick={() => selectTab('overview')}>Overview</TabButton>
+            <TabButton active={tab === 'add'} icon={<UserPlus size={19} />} onClick={() => selectTab('add')}>Add person</TabButton>
            <TabButton active={tab === 'people'} icon={<UsersRound size={19} />} onClick={() => selectTab('people')}>People</TabButton>
         </div>
       </nav>
 
       <main className="mx-auto max-w-[1120px] px-4 py-6 sm:px-6 sm:py-8">
-        {tab === 'add' ? <section className="mx-auto max-w-3xl rounded-xl border border-border bg-white p-5 shadow-sm sm:p-7">
+         {tab === 'overview' ? <Dashboard countries={countries} onOpenPeople={openPeopleFromDashboard} /> : tab === 'add' ? <section className="mx-auto max-w-3xl rounded-xl border border-border bg-white p-5 shadow-sm sm:p-7">
           <h1 className="text-2xl font-bold tracking-tight">Add a person</h1>
           <p className="mt-2 text-base text-muted">Fill the form and tap Save. You can add the next person right away.</p>
           <div className="mt-7"><DevoteeForm countries={countries} defaultCountryId={indiaId} onSaved={() => setReloadKey((value) => value + 1)} /></div>
@@ -300,7 +312,7 @@ export function AdminApp({ userName, countries: initialCountries, initialTab }: 
              <button type="button" disabled={!pagination.total} onClick={() => setShowDownload(true)} className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-lg bg-accent px-3 font-semibold text-white shadow-sm transition hover:bg-accent-hover disabled:opacity-50 sm:w-auto sm:min-w-[180px]"><Download size={19} />Download</button>
           </div>
 
-           <div aria-busy={loading} className={`mt-4 overflow-hidden rounded-xl border border-border bg-white shadow-sm ${loading ? 'opacity-75' : ''}`}>
+            <div aria-busy={loading} className={`mt-4 overflow-hidden rounded-xl border border-border bg-white shadow-sm ${loading ? 'opacity-75' : ''}`}>
              <div className="flex flex-col gap-3 border-b border-border px-4 py-3 text-sm text-muted sm:flex-row sm:items-center sm:justify-between">
               <div className="flex flex-col gap-2">
                <p aria-live="polite">{loading ? 'Loading people…' : pagination.total ? `Showing ${firstShown.toLocaleString()}–${lastShown.toLocaleString()} of ${pagination.total.toLocaleString()} ${pagination.total === 1 ? 'person' : 'people'}` : 'No people found'}</p>
@@ -310,7 +322,7 @@ export function AdminApp({ userName, countries: initialCountries, initialTab }: 
 
              {loading && rows.length === 0 ? <DirectorySkeleton /> : !loading && rows.length === 0 ? <div className="px-5 py-14 text-center"><UsersRound className="mx-auto text-gray-300" size={38} aria-hidden="true" /><p className="mt-3 font-semibold">{filtersOn ? 'No one matches.' : 'No people yet.'}</p><p className="mt-1 text-sm text-muted">{filtersOn ? 'Clear filters or try another name.' : 'Add your first person to start building the registry.'}</p>{!filtersOn && <button type="button" onClick={() => selectTab('add')} className="mt-5 inline-flex min-h-11 items-center justify-center rounded-lg bg-accent px-4 font-semibold text-white hover:bg-accent-hover">Add person</button>}</div> : <>
                <div className="divide-y divide-border lg:hidden">{rows.map((row) => <PersonCard key={row.id} row={row} onEdit={() => setEditing(row)} onDelete={() => setDeleting(row)} />)}</div>
-               <div className="hidden overflow-x-auto lg:block"><table className="w-full min-w-[1040px] text-left text-sm"><thead className="bg-gray-50 text-xs uppercase tracking-wide text-muted"><tr><th className="px-4 py-3">Name</th><th className="px-3 py-3">Mobile</th><th className="px-3 py-3">Address</th><th className="px-3 py-3">City</th><th className="px-3 py-3">State</th><th className="px-3 py-3">PIN</th><th className="px-3 py-3">Country</th><th className="px-3 py-3">Email</th><th className="px-4 py-3 text-right">Actions</th></tr></thead><tbody className="divide-y divide-border">{rows.map((row) => <tr key={row.id} className="align-top hover:bg-amber-50/35"><td className="px-4 py-4 font-semibold">{row.fullName}</td><td className="px-3 py-4"><a className="whitespace-nowrap text-accent hover:underline" href={telHref(row.mobile)}>{formatMobile(row.mobile)}</a></td><td className="max-w-[220px] px-3 py-4 text-muted">{row.address}</td><td className="px-3 py-4">{row.cityName}</td><td className="px-3 py-4">{row.stateName}</td><td className="px-3 py-4 font-mono">{row.postalCode || '—'}</td><td className="px-3 py-4">{row.countryName}</td><td className="max-w-[180px] break-words px-3 py-4">{row.email || '—'}</td><td className="px-4 py-3"><div className="flex justify-end gap-2"><SmallAction onClick={() => setEditing(row)}><Pencil size={16} />Edit</SmallAction><SmallAction danger onClick={() => setDeleting(row)}><Trash2 size={16} />Delete</SmallAction></div></td></tr>)}</tbody></table></div>
+               <div className="hidden overflow-x-auto lg:block"><table className="w-full table-fixed text-left text-sm"><colgroup><col className="w-[14%]" /><col className="w-[12%]" /><col className="w-[18%]" /><col className="w-[8%]" /><col className="w-[9%]" /><col className="w-[6%]" /><col className="w-[8%]" /><col className="w-[10%]" /><col className="w-[15%]" /></colgroup><thead className="bg-gray-50 text-xs uppercase tracking-wide text-muted"><tr><th className="px-3 py-3">Name</th><th className="px-2 py-3">Mobile</th><th className="px-2 py-3">Address</th><th className="px-2 py-3">City</th><th className="px-2 py-3">State</th><th className="px-2 py-3">PIN</th><th className="px-2 py-3">Country</th><th className="px-2 py-3">Email</th><th className="px-3 py-3 text-right">Actions</th></tr></thead><tbody className="divide-y divide-border">{rows.map((row) => <tr key={row.id} className="align-top hover:bg-amber-50/35"><td className="break-words px-3 py-4 font-semibold"><div className="line-clamp-3">{row.fullName}</div></td><td className="px-2 py-4"><a className="break-words text-accent hover:underline" href={telHref(row.mobile)}>{formatMobile(row.mobile)}</a></td><td className="px-2 py-4 text-muted"><div className="line-clamp-3 break-words" title={row.address}>{row.address}</div></td><td className="break-words px-2 py-4">{row.cityName}</td><td className="break-words px-2 py-4">{row.stateName}</td><td className="break-words px-2 py-4 font-mono">{row.postalCode || '—'}</td><td className="break-words px-2 py-4">{row.countryName}</td><td className="break-words px-2 py-4"><div className="line-clamp-2" title={row.email || undefined}>{row.email || '—'}</div></td><td className="px-3 py-3"><div className="flex flex-wrap justify-end gap-2"><SmallAction onClick={() => setEditing(row)}><Pencil size={16} />Edit</SmallAction><SmallAction danger onClick={() => setDeleting(row)}><Trash2 size={16} />Delete</SmallAction></div></td></tr>)}</tbody></table></div>
             </>}
             <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 border-t border-border p-3"><button disabled={page <= 1 || loading} onClick={() => setPage((value) => value - 1)} className="inline-flex h-11 items-center justify-center gap-1 rounded-lg border border-border px-3 font-semibold disabled:opacity-40"><ChevronLeft size={17} />Previous</button><span className="whitespace-nowrap text-sm font-medium">Page {pagination.page} of {pagination.totalPages}</span><button disabled={page >= pagination.totalPages || loading} onClick={() => setPage((value) => value + 1)} className="inline-flex h-11 items-center justify-center gap-1 rounded-lg border border-border px-3 font-semibold disabled:opacity-40">Next<ChevronRight size={17} /></button></div>
           </div>

@@ -1,12 +1,12 @@
 import bcrypt from 'bcryptjs';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { SignJWT, jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
 import { db } from '@/db';
 import { users } from '@/db/schema';
 import type { SessionPayload } from '@/types';
+import { requireJwtSecret } from '@/lib/jwt-secret';
 
-const SECRET = new TextEncoder().encode(process.env.JWT_SECRET ?? 'dev-secret-change-in-production');
 const COOKIE_NAME = 'dr_session';
 
 const SESSION_MAX_AGE_SEC = 60 * 60 * 24 * 30; // 1 month
@@ -16,12 +16,12 @@ export async function signToken(payload: SessionPayload) {
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
     .setExpirationTime(`${SESSION_MAX_AGE_SEC}s`)
-    .sign(SECRET);
+    .sign(requireJwtSecret());
 }
 
 export async function verifyToken(token: string): Promise<SessionPayload | null> {
   try {
-    const { payload } = await jwtVerify(token, SECRET);
+    const { payload } = await jwtVerify(token, requireJwtSecret());
     if (payload.role !== 'admin' || typeof payload.userId !== 'number') return null;
     return payload as unknown as SessionPayload;
   } catch {
@@ -31,7 +31,15 @@ export async function verifyToken(token: string): Promise<SessionPayload | null>
 
 export async function getSession(): Promise<SessionPayload | null> {
   const token = (await cookies()).get(COOKIE_NAME)?.value;
-  return token ? verifyToken(token) : null;
+  if (!token) return null;
+  const session = await verifyToken(token);
+  if (!session) return null;
+  const [user] = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(and(eq(users.id, session.userId), eq(users.isActive, true)))
+    .limit(1);
+  return user ? session : null;
 }
 
 export async function createSession(payload: SessionPayload) {

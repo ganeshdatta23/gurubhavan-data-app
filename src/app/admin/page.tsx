@@ -7,5 +7,6 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
   const session = await getSession();
   if (!session) redirect('/login');
   const countries = await getCountries();
-  return <AdminApp userName={session.name} countries={countries} initialTab={(await searchParams).tab === 'people' ? 'people' : 'add'} />;
+  const tab = (await searchParams).tab;
+  return <AdminApp userName={session.name} countries={countries} initialTab={tab === 'people' ? 'people' : tab === 'add' ? 'add' : 'overview'} />;
 }

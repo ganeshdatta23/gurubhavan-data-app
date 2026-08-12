@@ -3,6 +3,7 @@ import { createSession, loginUser } from '@/lib/auth';
 import { checkRateLimit, clearRateLimit } from '@/lib/rate-limit';
 import { absoluteUrl } from '@/lib/request-origin';
 import { loginSchema } from '@/lib/validators';
+import { isSameOriginMutation } from '@/lib/mutation-origin';
 
 function clientIp(request: NextRequest) {
   return (
@@ -18,6 +19,7 @@ function redirectTo(request: NextRequest, path: string) {
 
 /** Classic HTML form POST login (no client JS required). */
 export async function POST(request: NextRequest) {
+  if (!isSameOriginMutation(request)) return redirectTo(request, '/login?error=Invalid%20request%20origin.');
   const formData = await request.formData();
   const parsed = loginSchema.safeParse({
     username: formData.get('username'),
