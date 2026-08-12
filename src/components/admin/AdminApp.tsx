@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
-import { BarChart3, ChevronLeft, ChevronRight, Download, FileUp, LogOut, Pencil, Search, Trash2, UserPlus, UsersRound, X } from 'lucide-react';
+import { BarChart3, ChevronLeft, ChevronRight, Download, FileUp, LogOut, MessageCircle, Pencil, Search, Trash2, UserPlus, UsersRound, X } from 'lucide-react';
+import type { GridPaginationModel } from '@mui/x-data-grid';
 import { useRouter } from 'next/navigation';
 import { DevoteeForm } from '@/components/devotees/DevoteeForm';
 import { ImportDialog } from '@/components/admin/ImportDialog';
@@ -9,6 +10,8 @@ import { Dashboard } from '@/components/admin/Dashboard';
 import { LookupCombobox } from '@/components/shared/LookupCombobox';
 import { formatMobileDisplay, telHref } from '@/lib/phone';
 import type { DevoteeListItem, LookupOption } from '@/types';
+import { PeopleDataGrid } from '@/components/admin/PeopleDataGrid';
+import { WhatsAppDialog } from '@/components/admin/WhatsAppDialog';
 
 export type Tab = 'overview' | 'add' | 'people';
 type Pagination = { page: number; pageSize: number; total: number; totalPages: number };
@@ -45,6 +48,9 @@ export function AdminApp({ userName, countries: initialCountries, initialTab }: 
   const [logoutBusy, setLogoutBusy] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [showImport, setShowImport] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [selectAllUsers, setSelectAllUsers] = useState(false);
+  const [showWhatsApp, setShowWhatsApp] = useState(false);
   const editDialogRef = useDialogFocus(Boolean(editing), () => setEditing(null));
 
   // Refresh countries when people list reloads (e.g. after adding a custom location).
@@ -187,6 +193,15 @@ export function AdminApp({ userName, countries: initialCountries, initialTab }: 
 
   function clearFilters() {
     setQuery(''); setSearch(''); setCountryId(''); setStateId(''); setCityId(''); setStates([]); setCities([]); setPage(1);
+    setSelectedIds([]); setSelectAllUsers(false);
+  }
+
+  function changeGridPage(model: GridPaginationModel) {
+    setPage(model.page + 1);
+    if (model.pageSize !== pageSize) {
+      setPageSize(model.pageSize);
+      setPage(1);
+    }
   }
 
   async function logout() {
@@ -244,21 +259,23 @@ export function AdminApp({ userName, countries: initialCountries, initialTab }: 
   const filtersOn = Boolean(query || countryId || stateId || cityId);
   const firstShown = pagination.total ? (pagination.page - 1) * pagination.pageSize + 1 : 0;
   const lastShown = Math.min(pagination.page * pagination.pageSize, pagination.total);
+  const selectedCount = selectAllUsers ? pagination.total : selectedIds.length;
+  const messageFilters = { q: search || undefined, countryId: countryId || undefined, stateId: stateId || undefined, cityId: cityId || undefined };
 
   return (
-    <div className="min-h-screen bg-bg text-foreground">
+    <div className="app-shell min-h-screen text-foreground">
       <header className="border-b border-border bg-white">
         <div className="mx-auto flex max-w-[1120px] items-center justify-between gap-4 px-4 py-4 sm:px-6">
-          <div><div className="flex items-center gap-2"><UsersRound className="text-accent" size={22} /><p className="text-lg font-bold tracking-tight">Guru Bhavan</p></div><p className="mt-0.5 max-w-[180px] truncate text-sm text-muted sm:max-w-none">Logged in as {userName}</p></div>
+          <div><div className="flex items-center gap-2"><span className="brand-mark flex h-9 w-9 items-center justify-center rounded-xl text-sm font-bold text-white">GB</span><div><p className="text-lg font-bold tracking-tight">Guru Bhavan</p><p className="mt-0.5 max-w-[180px] truncate text-xs text-muted sm:max-w-none">Registry workspace</p></div></div><p className="mt-1 text-xs text-muted">Signed in as <span className="font-semibold text-foreground">{userName}</span></p></div>
           <button type="button" disabled={logoutBusy} onClick={() => void logout()} className="inline-flex h-11 items-center gap-2 rounded-lg border border-border px-3.5 text-sm font-semibold transition hover:bg-gray-50 disabled:cursor-wait disabled:opacity-60"><LogOut size={17} /><span>{logoutBusy ? 'Logging out…' : 'Logout'}</span></button>
         </div>
       </header>
 
        <nav aria-label="Main sections" className="border-b border-border bg-white" role="tablist">
          <div className="mx-auto grid max-w-[1120px] grid-cols-3 gap-2 px-4 py-3 sm:px-6 md:flex">
-            <TabButton active={tab === 'overview'} icon={<BarChart3 size={19} />} onClick={() => selectTab('overview')}>Overview</TabButton>
-            <TabButton active={tab === 'add'} icon={<UserPlus size={19} />} onClick={() => selectTab('add')}>Add person</TabButton>
-           <TabButton active={tab === 'people'} icon={<UsersRound size={19} />} onClick={() => selectTab('people')}>People</TabButton>
+             <TabButton active={tab === 'add'} icon={<UserPlus size={19} />} onClick={() => selectTab('add')}>Add person</TabButton>
+             <TabButton active={tab === 'people'} icon={<UsersRound size={19} />} onClick={() => selectTab('people')}>People</TabButton>
+             <TabButton active={tab === 'overview'} icon={<BarChart3 size={19} />} onClick={() => selectTab('overview')}>Overview</TabButton>
         </div>
       </nav>
 
@@ -268,7 +285,7 @@ export function AdminApp({ userName, countries: initialCountries, initialTab }: 
           <p className="mt-2 text-base text-muted">Fill the form and tap Save. You can add the next person right away.</p>
           <div className="mt-7"><DevoteeForm countries={countries} defaultCountryId={indiaId} onSaved={() => setReloadKey((value) => value + 1)} /></div>
         </section> : <section>
-          <div><h1 className="text-2xl font-bold tracking-tight">People</h1><p className="mt-1 text-base text-muted">Find, update, or download people.</p></div>
+           <div><h1 className="text-2xl font-bold tracking-tight">People</h1><p className="mt-1 text-base text-muted">Find, update, message, or download people.</p></div>
           {notice && <p role="status" className="mt-5 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">{notice}</p>}
           {error && <p role="alert" className="mt-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
 
@@ -307,8 +324,11 @@ export function AdminApp({ userName, countries: initialCountries, initialTab }: 
              {filtersOn && <button type="button" onClick={clearFilters} className="mt-4 min-h-11 text-sm font-semibold text-accent underline underline-offset-4">Clear filters</button>}
           </div>
 
-           <div className="mt-4 grid gap-3 sm:flex sm:flex-wrap">
-             <button type="button" onClick={() => setShowImport(true)} className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-lg border border-border bg-white px-3 font-semibold shadow-sm transition hover:bg-gray-50 sm:w-auto sm:min-w-[180px]"><FileUp size={19} />Upload Excel</button>
+             <div className="mt-4 flex flex-wrap gap-3">
+              <button type="button" disabled={!pagination.total} onClick={() => { setSelectAllUsers(true); setSelectedIds([]); }} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-lg border border-accent bg-[#f4e7eb] px-3 font-semibold text-accent disabled:opacity-50"><UsersRound size={19} />Select all users</button>
+              {(selectedIds.length > 0 || selectAllUsers) && <button type="button" onClick={() => { setSelectedIds([]); setSelectAllUsers(false); }} className="inline-flex min-h-12 items-center justify-center rounded-lg border border-border bg-white px-3 font-semibold">Clear selection</button>}
+              <button type="button" disabled={!selectedCount} onClick={() => setShowWhatsApp(true)} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-lg bg-accent px-3 font-semibold text-white shadow-sm transition hover:bg-accent-hover disabled:opacity-50"><MessageCircle size={19} />WhatsApp {selectedCount ? `(${selectedCount.toLocaleString()})` : ''}</button>
+              <button type="button" onClick={() => setShowImport(true)} className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-lg border border-border bg-white px-3 font-semibold shadow-sm transition hover:bg-gray-50 sm:w-auto sm:min-w-[180px]"><FileUp size={19} />Upload Excel</button>
              <button type="button" disabled={!pagination.total} onClick={() => setShowDownload(true)} className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-lg bg-accent px-3 font-semibold text-white shadow-sm transition hover:bg-accent-hover disabled:opacity-50 sm:w-auto sm:min-w-[180px]"><Download size={19} />Download</button>
           </div>
 
@@ -322,9 +342,9 @@ export function AdminApp({ userName, countries: initialCountries, initialTab }: 
 
              {loading && rows.length === 0 ? <DirectorySkeleton /> : !loading && rows.length === 0 ? <div className="px-5 py-14 text-center"><UsersRound className="mx-auto text-gray-300" size={38} aria-hidden="true" /><p className="mt-3 font-semibold">{filtersOn ? 'No one matches.' : 'No people yet.'}</p><p className="mt-1 text-sm text-muted">{filtersOn ? 'Clear filters or try another name.' : 'Add your first person to start building the registry.'}</p>{!filtersOn && <button type="button" onClick={() => selectTab('add')} className="mt-5 inline-flex min-h-11 items-center justify-center rounded-lg bg-accent px-4 font-semibold text-white hover:bg-accent-hover">Add person</button>}</div> : <>
                <div className="divide-y divide-border lg:hidden">{rows.map((row) => <PersonCard key={row.id} row={row} onEdit={() => setEditing(row)} onDelete={() => setDeleting(row)} />)}</div>
-               <div className="hidden overflow-x-auto lg:block"><table className="w-full table-fixed text-left text-sm"><colgroup><col className="w-[14%]" /><col className="w-[12%]" /><col className="w-[18%]" /><col className="w-[8%]" /><col className="w-[9%]" /><col className="w-[6%]" /><col className="w-[8%]" /><col className="w-[10%]" /><col className="w-[15%]" /></colgroup><thead className="bg-gray-50 text-xs uppercase tracking-wide text-muted"><tr><th className="px-3 py-3">Name</th><th className="px-2 py-3">Mobile</th><th className="px-2 py-3">Address</th><th className="px-2 py-3">City</th><th className="px-2 py-3">State</th><th className="px-2 py-3">PIN</th><th className="px-2 py-3">Country</th><th className="px-2 py-3">Email</th><th className="px-3 py-3 text-right">Actions</th></tr></thead><tbody className="divide-y divide-border">{rows.map((row) => <tr key={row.id} className="align-top hover:bg-amber-50/35"><td className="break-words px-3 py-4 font-semibold"><div className="line-clamp-3">{row.fullName}</div></td><td className="px-2 py-4"><a className="break-words text-accent hover:underline" href={telHref(row.mobile)}>{formatMobile(row.mobile)}</a></td><td className="px-2 py-4 text-muted"><div className="line-clamp-3 break-words" title={row.address}>{row.address}</div></td><td className="break-words px-2 py-4">{row.cityName}</td><td className="break-words px-2 py-4">{row.stateName}</td><td className="break-words px-2 py-4 font-mono">{row.postalCode || '—'}</td><td className="break-words px-2 py-4">{row.countryName}</td><td className="break-words px-2 py-4"><div className="line-clamp-2" title={row.email || undefined}>{row.email || '—'}</div></td><td className="px-3 py-3"><div className="flex flex-wrap justify-end gap-2"><SmallAction onClick={() => setEditing(row)}><Pencil size={16} />Edit</SmallAction><SmallAction danger onClick={() => setDeleting(row)}><Trash2 size={16} />Delete</SmallAction></div></td></tr>)}</tbody></table></div>
+                <div className="people-grid"><PeopleDataGrid rows={rows} loading={loading} total={pagination.total} page={page} pageSize={pageSize} onPageChange={changeGridPage} onEdit={setEditing} onDelete={setDeleting} selectedIds={selectedIds} onSelectionChange={(ids) => { setSelectedIds(ids); setSelectAllUsers(false); }} /></div>
             </>}
-            <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 border-t border-border p-3"><button disabled={page <= 1 || loading} onClick={() => setPage((value) => value - 1)} className="inline-flex h-11 items-center justify-center gap-1 rounded-lg border border-border px-3 font-semibold disabled:opacity-40"><ChevronLeft size={17} />Previous</button><span className="whitespace-nowrap text-sm font-medium">Page {pagination.page} of {pagination.totalPages}</span><button disabled={page >= pagination.totalPages || loading} onClick={() => setPage((value) => value + 1)} className="inline-flex h-11 items-center justify-center gap-1 rounded-lg border border-border px-3 font-semibold disabled:opacity-40">Next<ChevronRight size={17} /></button></div>
+             <div className="directory-pagination grid grid-cols-[1fr_auto_1fr] items-center gap-3 border-t border-border p-3"><button disabled={page <= 1 || loading} onClick={() => setPage((value) => value - 1)} className="inline-flex h-11 items-center justify-center gap-1 rounded-lg border border-border px-3 font-semibold disabled:opacity-40"><ChevronLeft size={17} />Previous</button><span className="whitespace-nowrap text-sm font-medium">Page {pagination.page} of {pagination.totalPages}</span><button disabled={page >= pagination.totalPages || loading} onClick={() => setPage((value) => value + 1)} className="inline-flex h-11 items-center justify-center gap-1 rounded-lg border border-border px-3 font-semibold disabled:opacity-40">Next<ChevronRight size={17} /></button></div>
           </div>
         </section>}
       </main>
@@ -333,12 +353,13 @@ export function AdminApp({ userName, countries: initialCountries, initialTab }: 
       {deleting && <ConfirmDialog title={`Delete ${deleting.fullName}?`} onCancel={() => setDeleting(null)}><p>Remove {deleting.fullName} from the list? You can ask an admin if this was a mistake.</p><button onClick={() => void removePerson()} disabled={deleteBusy} className="mt-6 h-12 w-full rounded-lg bg-red-600 px-5 font-semibold text-white hover:bg-red-700 disabled:opacity-60">{deleteBusy ? 'Deleting…' : 'Delete person'}</button></ConfirmDialog>}
       {showDownload && <ConfirmDialog title={`Download ${pagination.total.toLocaleString()} ${pagination.total === 1 ? 'person' : 'people'}?`} onCancel={() => setShowDownload(false)}><p>{filtersOn ? 'The download will include everyone matching the current filters, not only this page.' : 'The download will include all active people.'}</p><div className="mt-6 grid gap-3"><button onClick={() => void download('excel')} disabled={downloadBusy} className="h-12 rounded-lg bg-accent px-5 font-semibold text-white hover:bg-accent-hover disabled:opacity-60">{downloadBusy ? 'Preparing…' : 'Download Excel'}</button><button onClick={() => void download('csv')} disabled={downloadBusy} className="h-12 rounded-lg border border-border px-5 font-semibold hover:bg-gray-50">Download CSV</button></div></ConfirmDialog>}
       {showImport && <ImportDialog onClose={() => setShowImport(false)} onImported={(count) => { setShowImport(false); setNotice(`Imported ${count.toLocaleString()} ${count === 1 ? 'person' : 'people'}.`); setReloadKey((value) => value + 1); }} />}
+      {showWhatsApp && <WhatsAppDialog count={selectedCount} ids={selectedIds} all={selectAllUsers} filters={messageFilters} onClose={() => setShowWhatsApp(false)} />}
     </div>
   );
 }
 
 function TabButton({ active, icon, onClick, children }: { active: boolean; icon: React.ReactNode; onClick: () => void; children: React.ReactNode }) {
-   return <button type="button" role="tab" aria-selected={active} tabIndex={active ? 0 : -1} onClick={onClick} className={`inline-flex h-12 items-center justify-center gap-2 rounded-lg px-5 font-semibold transition md:min-w-40 ${active ? 'bg-amber-100 text-amber-900 shadow-inner' : 'text-muted hover:bg-gray-50 hover:text-foreground'}`}>{icon}{children}</button>;
+   return <button type="button" role="tab" aria-selected={active} tabIndex={active ? 0 : -1} onClick={onClick} className={`inline-flex h-12 items-center justify-center gap-2 rounded-lg px-5 font-semibold transition md:min-w-40 ${active ? 'bg-[#f4e7eb] text-accent shadow-inner' : 'text-muted hover:bg-gray-50 hover:text-foreground'}`}>{icon}{children}</button>;
 }
 
 function filterEmptyLabel(label: string) {
@@ -356,10 +377,6 @@ function FilterSelect({ label, value, options, onChange, disabled }: { label: st
 
 function PersonCard({ row, onEdit, onDelete }: { row: DevoteeListItem; onEdit: () => void; onDelete: () => void }) {
   return <article className="p-4"><div className="min-w-0"><h2 className="text-lg font-bold">{row.fullName}</h2><a href={telHref(row.mobile)} className="mt-1 inline-block text-base font-semibold text-accent">{formatMobile(row.mobile)}</a><p className="mt-2 text-sm font-medium">{row.cityName} · {row.stateName}</p><p className="mt-1 line-clamp-2 text-sm leading-6 text-muted">{row.address}</p>{row.email && <p className="mt-1 break-all text-sm text-muted">{row.email}</p>}</div><div className="mt-4 grid grid-cols-2 gap-3"><button type="button" onClick={onEdit} className="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-border font-semibold hover:bg-gray-50"><Pencil size={17} />Edit</button><button type="button" onClick={onDelete} className="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-red-200 font-semibold text-red-700 hover:bg-red-50"><Trash2 size={17} />Delete</button></div></article>;
-}
-
-function SmallAction({ children, onClick, danger }: { children: React.ReactNode; onClick: () => void; danger?: boolean }) {
-  return <button type="button" onClick={onClick} className={`inline-flex h-10 items-center gap-1.5 rounded-lg border px-3 font-semibold ${danger ? 'border-red-200 text-red-700 hover:bg-red-50' : 'border-border hover:bg-gray-50'}`}>{children}</button>;
 }
 
 function useDialogFocus<T extends HTMLElement>(active: boolean, onClose: () => void) {

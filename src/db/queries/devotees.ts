@@ -80,6 +80,14 @@ export function listDevoteesForMessaging(ids: number[]) {
     .where(and(inArray(devotees.id, ids), isNull(devotees.deletedAt)));
 }
 
+export async function listDevoteeIds(filters: Pick<DevoteeQuery, 'q' | 'countryId' | 'stateId' | 'cityId'>) {
+  const rows = await db.select({ id: devotees.id })
+    .from(devotees)
+    .where(devoteeWhere(filters))
+    .orderBy(asc(devotees.id));
+  return rows.map((row) => row.id);
+}
+
 export async function getDevoteeById(id: number) {
   const [row] = await db.select(selection)
     .from(devotees)

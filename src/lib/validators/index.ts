@@ -48,11 +48,11 @@ export const analyticsQuerySchema = z.object({
 });
 
 export const sendMessagesSchema = z.object({
-  ids: z.array(z.coerce.number().int().positive())
-    .min(1, 'Select at least one person.')
-    .max(25, 'Send to at most 25 people per request.'),
+  ids: z.array(z.coerce.number().int().positive()).max(25, 'Select at most 25 people per request.').default([]),
+  all: z.boolean().default(false),
+  filters: devoteeQuerySchema.pick({ q: true, countryId: true, stateId: true, cityId: true }).default({}),
   body: z.string().trim().min(1, 'Type the message to send.').max(3000, 'Use 3,000 characters or fewer.'),
-});
+}).refine((value) => value.all || value.ids.length > 0, { message: 'Select at least one person.' });
 
 export const duplicateCheckSchema = z.object({
   mobile: z.string().transform((value) => value.replace(/\D/g, '')).pipe(z.string().min(7).max(15)),

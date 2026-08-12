@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { listDevoteesForMessaging } from '@/db/queries/devotees';
+import { listDevoteeIds, listDevoteesForMessaging } from '@/db/queries/devotees';
 import { requireAdmin } from '@/lib/auth';
 import { normalizeAndCheckMobile } from '@/lib/phone';
 import { sendMessagesSchema } from '@/lib/validators';
@@ -26,7 +26,8 @@ export async function POST(request: NextRequest) {
     }, { status: 503 });
   }
 
-  const people = await listDevoteesForMessaging(parsed.data.ids);
+  const ids = parsed.data.all ? await listDevoteeIds(parsed.data.filters) : parsed.data.ids;
+  const people = await listDevoteesForMessaging(ids);
   const byId = new Map(people.map((person) => [person.id, person]));
   const encoder = new TextEncoder();
 
@@ -36,7 +37,7 @@ export async function POST(request: NextRequest) {
         controller.enqueue(encoder.encode(`${JSON.stringify(result)}\n`));
       }
       try {
-        for (const id of parsed.data.ids) {
+        for (const id of ids) {
           // The caller closed the connection (Stop, or the tab went away).
           if (request.signal.aborted) break;
           const person = byId.get(id);

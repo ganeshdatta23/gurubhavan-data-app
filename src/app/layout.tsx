@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { AppTheme } from '@/components/shared/AppTheme';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -10,7 +11,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body suppressHydrationWarning>
-        {children}
+        <AppTheme>{children}</AppTheme>
       </body>
     </html>
   );

@@ -165,7 +165,7 @@ export function Dashboard({ countries, onOpenPeople }: Props) {
 }
 
 function MetricCard({ label, value, detail, icon }: { label: string; value: string; detail: string; icon: React.ReactNode }) {
-  return <article className="rounded-xl border border-border bg-white p-4 shadow-sm"><div className="flex items-center justify-between text-accent"><span className="text-sm font-semibold text-muted">{label}</span><span className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-50">{icon}</span></div><p className="mt-4 text-2xl font-bold tracking-tight">{value}</p><p className="mt-1 text-xs text-muted">{detail}</p></article>;
+  return <article className="rounded-xl border border-border bg-white p-4 shadow-sm"><div className="flex items-center justify-between text-accent"><span className="text-sm font-semibold text-muted">{label}</span><span className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#f4e7eb]">{icon}</span></div><p className="mt-4 text-2xl font-bold tracking-tight">{value}</p><p className="mt-1 text-xs text-muted">{detail}</p></article>;
 }
 
 function Panel({ title, description, children }: { title: string; description: string; children: React.ReactNode }) {
@@ -194,7 +194,7 @@ function TrendChart({ values, days }: { values: Array<{ date: string; count: num
   const maximum = Math.max(...points.map((point) => point.count), 1);
   const polyline = points.map((point, index) => `${(index / Math.max(points.length - 1, 1)) * 100},${100 - (point.count / maximum) * 84 - 8}`).join(' ');
   const total = points.reduce((sum, point) => sum + point.count, 0);
-  return <div><div className="flex items-end justify-between"><div><p className="text-3xl font-bold">{total.toLocaleString()}</p><p className="text-xs text-muted">registrations in selected range</p></div><span className="text-xs text-muted">{points[0]?.date} to {points[points.length - 1]?.date}</span></div><div className="mt-5 overflow-hidden rounded-lg bg-amber-50 p-2"><svg viewBox="0 0 100 100" preserveAspectRatio="none" className="h-44 w-full" role="img" aria-label={`Daily registrations over the last ${days} days`}><polyline fill="none" stroke="#b45309" strokeWidth="2" vectorEffect="non-scaling-stroke" points={polyline} /></svg></div><div className="mt-2 flex justify-between text-xs text-muted"><span>{points[0]?.date}</span><span>Today</span></div></div>;
+  return <div><div className="flex items-end justify-between"><div><p className="text-3xl font-bold">{total.toLocaleString()}</p><p className="text-xs text-muted">registrations in selected range</p></div><span className="text-xs text-muted">{points[0]?.date} to {points[points.length - 1]?.date}</span></div><div className="mt-5 overflow-hidden rounded-lg bg-[#fbf3e8] p-2"><svg viewBox="0 0 100 100" preserveAspectRatio="none" className="h-44 w-full" role="img" aria-label={`Daily registrations over the last ${days} days`}><polyline fill="none" stroke="#7f1d3a" strokeWidth="2" vectorEffect="non-scaling-stroke" points={polyline} /></svg></div><div className="mt-2 flex justify-between text-xs text-muted"><span>{points[0]?.date}</span><span>Today</span></div></div>;
 }
 
 function DashboardSkeleton() {
