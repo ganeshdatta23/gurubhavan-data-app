@@ -1,7 +1,7 @@
 'use client';
 
 import { DeleteOutlined, EditOutlined } from '@mui/icons-material';
-import { DataGrid, type GridColDef, type GridPaginationModel } from '@mui/x-data-grid';
+import { DataGrid, type GridColDef, type GridPaginationModel, type GridRowSelectionModel } from '@mui/x-data-grid';
 import { IconButton, Link, Tooltip } from '@mui/material';
 import { formatMobileDisplay, telHref } from '@/lib/phone';
 import type { DevoteeListItem } from '@/types';
@@ -15,9 +15,11 @@ type Props = {
   onPageChange: (model: GridPaginationModel) => void;
   onEdit: (row: DevoteeListItem) => void;
   onDelete: (row: DevoteeListItem) => void;
+  selectedIds: number[];
+  onSelectionChange: (ids: number[]) => void;
 };
 
-export function PeopleDataGrid({ rows, loading, total, page, pageSize, onPageChange, onEdit, onDelete }: Props) {
+export function PeopleDataGrid({ rows, loading, total, page, pageSize, onPageChange, onEdit, onDelete, selectedIds, onSelectionChange }: Props) {
   const columns: GridColDef<DevoteeListItem>[] = [
     { field: 'fullName', headerName: 'Name', flex: 1.2, minWidth: 170 },
     { field: 'mobile', headerName: 'Mobile', minWidth: 140, renderCell: ({ value }) => <Link href={telHref(String(value))}>{formatMobileDisplay(String(value))}</Link> },
@@ -42,6 +44,10 @@ export function PeopleDataGrid({ rows, loading, total, page, pageSize, onPageCha
     paginationMode="server"
     paginationModel={{ page: page - 1, pageSize }}
     onPaginationModelChange={onPageChange}
+    checkboxSelection
+    keepNonExistentRowsSelected
+    rowSelectionModel={{ type: 'include', ids: new Set(selectedIds) }}
+    onRowSelectionModelChange={(selection: GridRowSelectionModel) => onSelectionChange(Array.from(selection.ids).map(Number))}
     pageSizeOptions={[10, 20, 50]}
     disableRowSelectionOnClick
     getRowHeight={() => 'auto'}
