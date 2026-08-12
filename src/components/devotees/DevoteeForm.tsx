@@ -461,7 +461,7 @@ export function DevoteeForm({ countries: initialCountries, defaultCountryId, dev
     `mt-2 min-h-12 w-full rounded-lg border bg-white px-3.5 text-base outline-none transition focus:ring-4 ${
       errors[field] ? 'border-red-400 focus:border-red-500 focus:ring-red-100' : 'border-border focus:border-accent focus:ring-amber-100'
     }`;
-  const errorFor = (field: string) => errors[field] ? <p className="mt-1.5 text-sm text-red-700">{errors[field]}</p> : null;
+  const errorFor = (field: string) => errors[field] ? <p id={errorId(field)} className="mt-1.5 text-sm text-red-700">{errors[field]}</p> : null;
 
   const otherInputClass = (field: 'customCountry' | 'customState' | 'customCity') =>
     `min-h-12 flex-1 rounded-lg border bg-white px-3.5 text-base outline-none transition focus:ring-4 ${
@@ -521,8 +521,10 @@ export function DevoteeForm({ countries: initialCountries, defaultCountryId, dev
                 setErrors({});
                 setSuccess('');
               }}
-              className={fieldClass('countryId')}
-            >
+               className={fieldClass('countryId')}
+               aria-invalid={Boolean(errors.countryId)}
+               aria-describedby={errors.countryId ? errorId('countryId') : undefined}
+             >
               <option value="">Choose country</option>
               {countryOptions.map((country) => (
                 <option key={country.id} value={country.id}>{country.name}</option>

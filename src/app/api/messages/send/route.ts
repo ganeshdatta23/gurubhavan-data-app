@@ -5,6 +5,7 @@ import { normalizeAndCheckMobile } from '@/lib/phone';
 import { sendMessagesSchema } from '@/lib/validators';
 import { getWhatsappConfig, renderMessageBody, sendWhatsappText } from '@/lib/whatsapp';
 import type { MessageSendResult } from '@/types';
+import { isSameOriginMutation } from '@/lib/mutation-origin';
 
 export const runtime = 'nodejs';
 
@@ -13,6 +14,7 @@ export const runtime = 'nodejs';
  * (NDJSON) so the People tab can move its progress bar as each message goes out.
  */
 export async function POST(request: NextRequest) {
+  if (!isSameOriginMutation(request)) return NextResponse.json({ error: 'Invalid request origin.' }, { status: 403 });
   await requireAdmin();
   const parsed = sendMessagesSchema.safeParse(await request.json().catch(() => ({})));
   if (!parsed.success) return NextResponse.json({ error: parsed.error.errors[0].message }, { status: 400 });

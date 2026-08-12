@@ -6,6 +6,7 @@ import { getDevoteeById } from '@/db/queries/devotees';
 import { findActiveDuplicate, normalizeDevoteeMobile, validateLocation } from '@/lib/devotee-service';
 import { requireAdmin } from '@/lib/auth';
 import { devoteeFormSchema } from '@/lib/validators';
+import { isSameOriginMutation } from '@/lib/mutation-origin';
 
 type Context = { params: Promise<{ id: string }> };
 
@@ -23,6 +24,7 @@ export async function GET(_request: NextRequest, { params }: Context) {
 }
 
 export async function PUT(request: NextRequest, { params }: Context) {
+  if (!isSameOriginMutation(request)) return NextResponse.json({ error: 'Invalid request origin.' }, { status: 403 });
   const session = await requireAdmin();
   const id = parseId((await params).id);
   if (!id) return NextResponse.json({ error: 'Invalid person ID.' }, { status: 400 });
@@ -66,6 +68,7 @@ export async function PUT(request: NextRequest, { params }: Context) {
 export const PATCH = PUT;
 
 export async function DELETE(_request: NextRequest, { params }: Context) {
+  if (!isSameOriginMutation(_request)) return NextResponse.json({ error: 'Invalid request origin.' }, { status: 403 });
   const session = await requireAdmin();
   const id = parseId((await params).id);
   if (!id) return NextResponse.json({ error: 'Invalid person ID.' }, { status: 400 });

@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { fetchForExport } from '@/lib/exporters/fetchForExport';
 import { requireAdmin } from '@/lib/auth';
 import { devoteeQuerySchema } from '@/lib/validators';
+import { sanitizeSpreadsheetValue } from '@/lib/exporters/sanitizeSpreadsheetValue';
 
-const quote = (value: string) => `"${value.replace(/"/g, '""')}"`;
+const quote = (value: string) => `"${sanitizeSpreadsheetValue(value).replace(/"/g, '""')}"`;
 
 export async function GET(request: NextRequest) {
   await requireAdmin();

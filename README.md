@@ -1,6 +1,6 @@
 # Guru Bhavan Devotee Registry
 
-An admin-only, mobile-first Next.js application for adding, finding, editing, deleting, importing, and downloading devotee records.
+An admin-only, mobile-first Next.js application for adding, finding, editing, deleting, importing, downloading, and understanding devotee records.
 
 ## Local setup
 
@@ -40,8 +40,19 @@ This is safe to rerun. It creates countries/states/cities used by the Add person
 
 - Open **People** and choose **Upload Excel**.
 - Download the in-app template. Its headings are: Full Name, Mobile, Address, City, State, PIN, Country, Email.
-- Upload an `.xlsx` file up to 5 MB or 2,000 rows. The preview separates ready rows, problems, and duplicate mobiles. Only ready rows are imported.
+- Upload an `.xlsx` file up to 5 MB or 5,000 rows. The preview separates ready rows, problems, and duplicate mobiles. Only ready rows are imported as one transaction.
 - **Download** exports all active people or only the current search/location filters. It is never limited to the visible page. Excel and CSV are supported.
+
+## Overview
+
+The admin home page provides server-aggregated, filterable insights from active devotee records:
+
+- active people, recent registrations, represented locations, and required-field completeness
+- country, state, and city distribution with drill-down filters
+- registration trends for the last 7, 30, 90, or 365 days
+- filtered navigation from an insight directly to the matching People list
+
+Analytics use the existing `devotees`, `countries`, `states`, and `cities` data. No dashboard values are mocked.
 
 ## Send WhatsApp messages
 
@@ -60,4 +71,4 @@ npm start            # run the production build
 npm run db:bootstrap # create/migrate tables and seed admins
 ```
 
-Public registration, dashboards, chapters/source groups, user management, and scheduled/approval-based campaigns are intentionally not part of this application. Messaging is limited to the ad-hoc WhatsApp send described above.
+Public registration, chapters/source groups, user management, and scheduled/approval-based campaigns are intentionally not part of this application. Messaging is limited to the ad-hoc WhatsApp send described above.

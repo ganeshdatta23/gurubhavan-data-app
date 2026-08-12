@@ -1,15 +1,16 @@
 'use client';
 
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
-import { ChevronLeft, ChevronRight, Download, FileUp, LogOut, Pencil, Search, Trash2, UserPlus, UsersRound, X } from 'lucide-react';
+import { BarChart3, ChevronLeft, ChevronRight, Download, FileUp, LogOut, Pencil, Search, Trash2, UserPlus, UsersRound, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { DevoteeForm } from '@/components/devotees/DevoteeForm';
 import { ImportDialog } from '@/components/admin/ImportDialog';
+import { Dashboard } from '@/components/admin/Dashboard';
 import { LookupCombobox } from '@/components/shared/LookupCombobox';
 import { formatMobileDisplay, telHref } from '@/lib/phone';
 import type { DevoteeListItem, LookupOption } from '@/types';
 
-type Tab = 'add' | 'people';
+export type Tab = 'overview' | 'add' | 'people';
 type Pagination = { page: number; pageSize: number; total: number; totalPages: number };
 const emptyPagination: Pagination = { page: 1, pageSize: 20, total: 0, totalPages: 1 };
 const pageSizes = [10, 20, 50];
@@ -171,7 +172,17 @@ export function AdminApp({ userName, countries: initialCountries, initialTab }: 
   function selectTab(next: Tab) {
     setTab(next);
     setNotice('');
-    router.replace(next === 'people' ? '/admin?tab=people' : '/admin', { scroll: false });
+    router.replace(next === 'people' ? '/admin?tab=people' : next === 'add' ? '/admin?tab=add' : '/admin', { scroll: false });
+  }
+
+  function openPeopleFromDashboard(filters: { countryId?: string; stateId?: string; cityId?: string }) {
+    setQuery('');
+    setSearch('');
+    setCountryId(filters.countryId ?? '');
+    setStateId(filters.stateId ?? '');
+    setCityId(filters.cityId ?? '');
+    setPage(1);
+    selectTab('people');
   }
 
   function clearFilters() {
@@ -244,14 +255,15 @@ export function AdminApp({ userName, countries: initialCountries, initialTab }: 
       </header>
 
        <nav aria-label="Main sections" className="border-b border-border bg-white" role="tablist">
-        <div className="mx-auto grid max-w-[1120px] grid-cols-2 gap-2 px-4 py-3 sm:px-6 md:flex">
-           <TabButton active={tab === 'add'} icon={<UserPlus size={19} />} onClick={() => selectTab('add')}>Add person</TabButton>
+         <div className="mx-auto grid max-w-[1120px] grid-cols-3 gap-2 px-4 py-3 sm:px-6 md:flex">
+            <TabButton active={tab === 'overview'} icon={<BarChart3 size={19} />} onClick={() => selectTab('overview')}>Overview</TabButton>
+            <TabButton active={tab === 'add'} icon={<UserPlus size={19} />} onClick={() => selectTab('add')}>Add person</TabButton>
            <TabButton active={tab === 'people'} icon={<UsersRound size={19} />} onClick={() => selectTab('people')}>People</TabButton>
         </div>
       </nav>
 
       <main className="mx-auto max-w-[1120px] px-4 py-6 sm:px-6 sm:py-8">
-        {tab === 'add' ? <section className="mx-auto max-w-3xl rounded-xl border border-border bg-white p-5 shadow-sm sm:p-7">
+         {tab === 'overview' ? <Dashboard countries={countries} onOpenPeople={openPeopleFromDashboard} /> : tab === 'add' ? <section className="mx-auto max-w-3xl rounded-xl border border-border bg-white p-5 shadow-sm sm:p-7">
           <h1 className="text-2xl font-bold tracking-tight">Add a person</h1>
           <p className="mt-2 text-base text-muted">Fill the form and tap Save. You can add the next person right away.</p>
           <div className="mt-7"><DevoteeForm countries={countries} defaultCountryId={indiaId} onSaved={() => setReloadKey((value) => value + 1)} /></div>

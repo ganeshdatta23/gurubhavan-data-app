@@ -1,5 +1,6 @@
 import ExcelJS from 'exceljs';
 import type { ExportRow } from '@/types';
+import { sanitizeSpreadsheetValue } from '@/lib/exporters/sanitizeSpreadsheetValue';
 
 const headers: Array<[keyof ExportRow, string, number]> = [
   ['fullName', 'Full Name', 28],
@@ -17,7 +18,9 @@ export async function toExcel(rows: ExportRow[]) {
   workbook.creator = 'Guru Bhavan Registry';
   const sheet = workbook.addWorksheet('People');
   sheet.columns = headers.map(([key, header, width]) => ({ key, header, width }));
-  sheet.addRows(rows);
+  sheet.addRows(rows.map((row) => Object.fromEntries(
+    Object.entries(row).map(([key, value]) => [key, sanitizeSpreadsheetValue(value)]),
+  )));
   sheet.views = [{ state: 'frozen', ySplit: 1 }];
   sheet.autoFilter = { from: 'A1', to: 'H1' };
   const firstRow = sheet.getRow(1);

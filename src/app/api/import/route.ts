@@ -6,6 +6,7 @@ import { findCityByName, findCountryByName, findStateByName } from '@/db/queries
 import { requireAdmin } from '@/lib/auth';
 import { findActiveDuplicate, normalizeDevoteeMobile, validateLocation } from '@/lib/devotee-service';
 import { devoteeFormSchema } from '@/lib/validators';
+import { isSameOriginMutation } from '@/lib/mutation-origin';
 
 export const runtime = 'nodejs';
 
@@ -77,6 +78,7 @@ async function checkRows(rows: ImportRow[]) {
 }
 
 export async function POST(request: NextRequest) {
+  if (!isSameOriginMutation(request)) return NextResponse.json({ error: 'Invalid request origin.' }, { status: 403 });
   const session = await requireAdmin();
   const form = await request.formData();
   const file = form.get('file');
@@ -86,9 +88,11 @@ export async function POST(request: NextRequest) {
     const result = await checkRows(rows);
     if (form.get('action') === 'import') {
       const now = new Date();
-      for (const item of result.ready) {
-        await db.insert(devotees).values({ ...item.data, createdBy: session.userId, updatedBy: session.userId, createdAt: now, updatedAt: now } as never);
-      }
+      await db.transaction(async (tx) => {
+        for (const item of result.ready) {
+          await tx.insert(devotees).values({ ...item.data, createdBy: session.userId, updatedBy: session.userId, createdAt: now, updatedAt: now } as never);
+        }
+      });
     }
     return NextResponse.json({ total: rows.length, ready: result.ready.length, problems: result.checked.filter((item) => item.reason), rows: result.checked, imported: form.get('action') === 'import' ? result.ready.length : 0 });
   } catch (error) {

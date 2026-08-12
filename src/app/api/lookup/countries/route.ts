@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createCountry, getCountries } from '@/db/queries/lookups';
 import { requireAdmin } from '@/lib/auth';
 import { createCountrySchema } from '@/lib/validators';
+import { isSameOriginMutation } from '@/lib/mutation-origin';
 
 export async function GET() {
   await requireAdmin();
@@ -11,6 +12,7 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  if (!isSameOriginMutation(request)) return NextResponse.json({ error: 'Invalid request origin.' }, { status: 403 });
   await requireAdmin();
 
   const parsed = createCountrySchema.safeParse(await request.json().catch(() => ({})));

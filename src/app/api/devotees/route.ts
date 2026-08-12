@@ -5,6 +5,7 @@ import { listDevotees } from '@/db/queries/devotees';
 import { findActiveDuplicate, normalizeDevoteeMobile, validateLocation } from '@/lib/devotee-service';
 import { requireAdmin } from '@/lib/auth';
 import { devoteeFormSchema, devoteeQuerySchema } from '@/lib/validators';
+import { isSameOriginMutation } from '@/lib/mutation-origin';
 
 export async function GET(request: NextRequest) {
   await requireAdmin();
@@ -24,6 +25,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  if (!isSameOriginMutation(request)) return NextResponse.json({ error: 'Invalid request origin.' }, { status: 403 });
   const session = await requireAdmin();
   const parsed = devoteeFormSchema.safeParse(await request.json().catch(() => ({})));
   if (!parsed.success) return NextResponse.json({ error: parsed.error.errors[0].message }, { status: 400 });

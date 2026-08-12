@@ -1,15 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { jwtVerify } from 'jose';
 import { absoluteUrl } from '@/lib/request-origin';
+import { getJwtSecret } from '@/lib/jwt-secret';
 import type { SessionPayload } from '@/types';
 
 const COOKIE_NAME = 'dr_session';
 
 async function verifySessionToken(token: string): Promise<SessionPayload | null> {
   try {
-    const secret = new TextEncoder().encode(
-      process.env.JWT_SECRET ?? 'dev-secret-change-in-production',
-    );
+    const secret = getJwtSecret();
+    if (!secret) return null;
     const { payload } = await jwtVerify(token, secret);
     if (payload.role !== 'admin' || typeof payload.userId !== 'number') return null;
     return payload as unknown as SessionPayload;
