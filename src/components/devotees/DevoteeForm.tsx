@@ -28,6 +28,14 @@ type Props = {
 
 const OTHER = String(LOOKUP_OTHER_ID);
 
+function fieldId(field: keyof FormValues | string) {
+  return `devotee-${field}`;
+}
+
+function errorId(field: keyof FormValues | string) {
+  return `${fieldId(field)}-error`;
+}
+
 const blank = (countryId?: number): FormValues => ({
   fullName: '', mobile: '', address: '', countryId: countryId ? String(countryId) : '',
   stateId: '', cityId: '', postalCode: '', email: '',
@@ -107,6 +115,7 @@ export function DevoteeForm({ countries: initialCountries, defaultCountryId, dev
       return;
     }
     const controller = new AbortController();
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoadingStates(true);
     setServerError('');
     void fetch(`/api/lookup/states?countryId=${values.countryId}`, {
@@ -139,6 +148,7 @@ export function DevoteeForm({ countries: initialCountries, defaultCountryId, dev
       return;
     }
     const controller = new AbortController();
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoadingCities(true);
     setServerError('');
     void fetch(`/api/lookup/cities?stateId=${values.stateId}`, {
@@ -561,6 +571,8 @@ export function DevoteeForm({ countries: initialCountries, defaultCountryId, dev
         <div>
           <LookupCombobox
             label="State"
+            inputId={fieldId('stateId')}
+            errorId={errorId('stateId')}
             required
             value={values.stateId}
             options={states}
@@ -625,6 +637,8 @@ export function DevoteeForm({ countries: initialCountries, defaultCountryId, dev
         <div>
           <LookupCombobox
             label="City"
+            inputId={fieldId('cityId')}
+            errorId={errorId('cityId')}
             required
             value={values.cityId}
             options={cities}

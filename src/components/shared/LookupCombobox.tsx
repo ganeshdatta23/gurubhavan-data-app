@@ -63,6 +63,7 @@ export function LookupCombobox({
   useEffect(() => {
     if (open) return;
     if (isOther) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setQuery(otherLabel);
       return;
     }
@@ -83,6 +84,7 @@ export function LookupCombobox({
   }, [allowEmpty, allowOther, emptyLabel, filtered, otherLabel]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setActiveIndex(0);
   }, [query, open]);
 
@@ -225,8 +227,8 @@ export function LookupCombobox({
           </ul>
         ) : null}
       </div>
-      <span className="mt-1.5 block text-sm font-normal text-muted">{hint}</span>
-      {error ? <p id={errorId} className="mt-1.5 text-sm text-red-700">{error}</p> : null}
+      {!disabled && <span className="mt-1.5 block text-sm font-normal text-muted">{hint}</span>}
+      {error ? <p id={errorId} role="alert" className="mt-1.5 text-sm text-red-700">{error}</p> : null}
     </label>
   );
 }

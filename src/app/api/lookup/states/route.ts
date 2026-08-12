@@ -4,6 +4,7 @@ import { requireAdmin } from '@/lib/auth';
 import { createStateSchema } from '@/lib/validators';
 
 export async function GET(request: NextRequest) {
+  await requireAdmin();
   const countryId = Number(request.nextUrl.searchParams.get('countryId'));
   if (!Number.isInteger(countryId) || countryId < 1) {
     return NextResponse.json({ error: 'countryId is required.' }, { status: 400 });
