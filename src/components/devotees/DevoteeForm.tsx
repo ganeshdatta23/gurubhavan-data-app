@@ -409,7 +409,10 @@ export function DevoteeForm({ countries: initialCountries, defaultCountryId, dev
     }
     if (Object.keys(nextErrors).length) {
       setErrors(nextErrors);
-      window.setTimeout(() => firstErrorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 0);
+      window.setTimeout(() => {
+        firstErrorRef.current?.focus();
+        firstErrorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 0);
       return;
     }
 
@@ -457,25 +460,30 @@ export function DevoteeForm({ countries: initialCountries, defaultCountryId, dev
 
   return (
     <form onSubmit={submit} noValidate>
-      <div ref={firstError ? firstErrorRef : undefined} />
+      {firstError && <div ref={firstErrorRef} tabIndex={-1} role="alert" aria-labelledby="devotee-error-title" className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-red-800 focus:outline-none focus:ring-4 focus:ring-red-100">
+        <p id="devotee-error-title" className="font-semibold">Please correct the highlighted fields.</p>
+        <ul className="mt-2 list-disc space-y-1 pl-5 text-sm">
+          {Object.entries(errors).filter(([, message]) => message).map(([field, message]) => <li key={field}><a className="underline underline-offset-2" href={`#${fieldId(field as keyof FormValues)}`}>{message}</a></li>)}
+        </ul>
+      </div>}
       {success && <div role="status" className="mb-6 flex items-start gap-3 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-green-800"><CheckCircle2 className="mt-0.5 shrink-0" size={19} /><span>{success}</span></div>}
       {serverError && <p role="alert" className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{serverError}</p>}
 
       <div className="grid gap-x-5 gap-y-5 md:grid-cols-2">
         <label className="block font-semibold">Full name <span className="text-red-600">*</span>
-          <input value={values.fullName} onChange={(event) => update('fullName', event.target.value)} autoComplete="name" className={fieldClass('fullName')} />
+          <input id={fieldId('fullName')} value={values.fullName} onChange={(event) => update('fullName', event.target.value)} autoComplete="name" aria-invalid={Boolean(errors.fullName)} aria-describedby={errors.fullName ? errorId('fullName') : undefined} required className={fieldClass('fullName')} />
           {errorFor('fullName')}
         </label>
         <label className="block font-semibold">Mobile number <span className="text-red-600">*</span>
-          <input value={values.mobile} onChange={(event) => update('mobile', event.target.value)} onBlur={() => void checkDuplicate()} inputMode="tel" autoComplete="tel" className={fieldClass('mobile')} />
-          <span className="mt-1.5 block text-sm font-normal text-muted">
+          <input id={fieldId('mobile')} value={values.mobile} onChange={(event) => update('mobile', event.target.value)} onBlur={() => void checkDuplicate()} inputMode="tel" autoComplete="tel" aria-invalid={Boolean(errors.mobile)} aria-describedby={`devotee-mobile-hint${errors.mobile ? ` ${errorId('mobile')}` : ''}`} required className={fieldClass('mobile')} />
+          <span id="devotee-mobile-hint" className="mt-1.5 block text-sm font-normal text-muted">
             {countryIso2 ? expectedPhoneHint(countryIso2) : 'Select a country, then enter the mobile number.'}
           </span>
           {errorFor('mobile')}
           {duplicateWarning && <p className="mt-2 rounded-md bg-amber-50 px-3 py-2 text-sm font-normal text-amber-800">{duplicateWarning}</p>}
         </label>
         <label className="block font-semibold md:col-span-2">Address <span className="text-red-600">*</span>
-          <textarea value={values.address} onChange={(event) => update('address', event.target.value)} rows={3} autoComplete="street-address" className={`${fieldClass('address')} py-3`} />
+          <textarea id={fieldId('address')} value={values.address} onChange={(event) => update('address', event.target.value)} rows={3} autoComplete="street-address" aria-invalid={Boolean(errors.address)} aria-describedby={errors.address ? errorId('address') : undefined} required className={`${fieldClass('address')} py-3`} />
           {errorFor('address')}
         </label>
         <div className="block font-semibold">
@@ -676,11 +684,11 @@ export function DevoteeForm({ countries: initialCountries, defaultCountryId, dev
           ) : null}
         </div>
         {isIndia && <label className="block font-semibold">PIN code <span className="text-red-600">*</span>
-          <input value={values.postalCode} onChange={(event) => update('postalCode', event.target.value)} inputMode="numeric" autoComplete="postal-code" maxLength={6} className={fieldClass('postalCode')} />
+           <input id={fieldId('postalCode')} value={values.postalCode} onChange={(event) => update('postalCode', event.target.value)} inputMode="numeric" autoComplete="postal-code" maxLength={6} aria-invalid={Boolean(errors.postalCode)} aria-describedby={errors.postalCode ? errorId('postalCode') : undefined} required className={fieldClass('postalCode')} />
           {errorFor('postalCode')}
         </label>}
         <label className="block font-semibold md:col-span-2">Email <span className="font-normal text-muted">(optional)</span>
-          <input value={values.email} onChange={(event) => update('email', event.target.value)} type="email" autoComplete="email" className={fieldClass('email')} />
+           <input id={fieldId('email')} value={values.email} onChange={(event) => update('email', event.target.value)} type="email" autoComplete="email" aria-invalid={Boolean(errors.email)} aria-describedby={errors.email ? errorId('email') : undefined} className={fieldClass('email')} />
           {errorFor('email')}
         </label>
       </div>

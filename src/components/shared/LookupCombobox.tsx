@@ -23,6 +23,8 @@ type Props = {
   error?: string;
   className?: string;
   selectedLabel?: string;
+  inputId?: string;
+  errorId?: string;
 };
 
 export function LookupCombobox({
@@ -41,8 +43,11 @@ export function LookupCombobox({
   error,
   className = '',
   selectedLabel,
+  inputId,
+  errorId,
 }: Props) {
   const listId = useId();
+  const labelId = `${listId}-label`;
   const rootRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -130,16 +135,23 @@ export function LookupCombobox({
           : 'No options found';
 
   return (
-    <label className={`block font-semibold ${className}`}>
-      {label}
+    <label htmlFor={inputId} className={`block font-semibold ${className}`}>
+      <span id={labelId}>{label}
       {required ? <span className="text-red-600"> *</span> : null}
+      </span>
       <div ref={rootRef} className="relative">
         <input
+          id={inputId}
           type="text"
           role="combobox"
           aria-expanded={open}
           aria-controls={listId}
+          aria-labelledby={labelId}
+          aria-activedescendant={open && items[activeIndex] ? `${listId}-option-${items[activeIndex].id}` : undefined}
           aria-autocomplete="list"
+          aria-invalid={Boolean(error)}
+          aria-describedby={errorId}
+          required={required}
           value={query}
           disabled={disabled || loading}
           placeholder={loading ? 'Loading…' : placeholder}
@@ -191,8 +203,9 @@ export function LookupCombobox({
               <li key={option.id === LOOKUP_OTHER_ID ? 'other' : option.id || 'empty'} role="presentation">
                 <button
                   type="button"
+                  id={`${listId}-option-${option.id}`}
                   role="option"
-                  aria-selected={index === activeIndex}
+                  aria-selected={String(option.id) === value || (allowEmpty && option.id === 0 && !value)}
                   onMouseDown={(event) => event.preventDefault()}
                   onClick={() => choose(option)}
                   className={`flex w-full px-3.5 py-2.5 text-left text-base ${
@@ -213,7 +226,7 @@ export function LookupCombobox({
         ) : null}
       </div>
       <span className="mt-1.5 block text-sm font-normal text-muted">{hint}</span>
-      {error ? <p className="mt-1.5 text-sm text-red-700">{error}</p> : null}
+      {error ? <p id={errorId} className="mt-1.5 text-sm text-red-700">{error}</p> : null}
     </label>
   );
 }
