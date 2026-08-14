@@ -45,6 +45,7 @@ export function PeopleDataGrid({ rows, loading, total, page, pageSize, onPageCha
     paginationModel={{ page: page - 1, pageSize }}
     onPaginationModelChange={onPageChange}
     checkboxSelection
+    disableRowSelectionExcludeModel
     keepNonExistentRowsSelected
     rowSelectionModel={{ type: 'include', ids: new Set(selectedIds) }}
     onRowSelectionModelChange={(selection: GridRowSelectionModel) => onSelectionChange(Array.from(selection.ids).map(Number))}
